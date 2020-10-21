@@ -17,7 +17,7 @@ Indeed, both lists containing them are sorted, and the paths are paired using th
 # And ideally, write a script to compute the prob maps from the tracks
 
 import tkinter as tk
-import os
+import os, sys, warnings
 from tkinter import filedialog
 from pathlib import Path
 import Functionnectome.Functionnectome as fun
@@ -587,6 +587,9 @@ class Functionnectome_GUI(tk.Tk):
     
     
 #%%
-
+if sys.version_info[0] < 3:
+    raise Exception("Must be using Python 3. And probably Python 3.6 (or superior).")
+if sys.version_info[1] < 6:
+    warnings.warn("Python version < 3.6 |nIt might not work. Consider updating.")
 functionnectome_GUI = Functionnectome_GUI()
 functionnectome_GUI.mainloop()

@@ -5,21 +5,9 @@ Created on Wed Jun 10 15:43:08 2020
 
 @author: nozais
 
-"pmap" = probability map (= group level visitation map)
+Main script used for the computation of functionnectomes.
 
-optional alternative prior files (too add at the end of the .fcntm file):
-###
-HDF5 path:
-	/mypath/myfile.h5
-Template path:
-	/mypath/myfile.nii.gz
-Probability maps (voxel) path:
-	/mypath
-Probability maps (region) path:
-	/mypath
-Region masks path:
-	/mypath
-###
+"pmap" = probability map (= group level visitation map)
 
 TODO : Add an ETA.
 Regionwise and voxelwise analyses started quite differently, but they kind of 
@@ -36,7 +24,7 @@ from pathlib import Path
 import pandas as pd
 
 #%%
-def LogDiplayPercent(logDir): # Don't forget to put a 'print()' after the function
+def LogDiplayPercent(logDir): # Don't forget to put a 'print("\n100%")' after the function
     '''
     Check the logs in logDir and display the progress in percent (look at the 
     last line of each log).
@@ -55,7 +43,7 @@ def LogDiplayPercent(logDir): # Don't forget to put a 'print()' after the functi
         totalLen = int(spiltLine[3]) # Should be the same for all the logs
     meanProgress = sum(currentLen)/len(currentLen)
     percentProgress = round(100*meanProgress/totalLen,2)
-    sys.stdout.write(f"\rProgress of the current process: {percentProgress}%")
+    sys.stdout.write(f"\rProgress of the current process: {percentProgress}%  ")
     sys.stdout.flush()
 
 def init_worker_sumPmaps(templShape,pmapStore,prior,outDir):
@@ -136,7 +124,7 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
                 logtxt = f'Voxel {ii} in {len(ind_voxels_batch)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
                 with open(logFile, "a") as log:
                     log.write(logtxt)
-            vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'],f'disconnectome_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'))
+            vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'],f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'))
             if ii==0:
                 sum_pmap = np.zeros(dict_var['templateShape'], dtype=vox_pmap_img.get_data_dtype())
             sum_pmap += vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
@@ -154,6 +142,10 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
     return sum_pmap
 
 def init_worker_regionwise(shared4D,sharedDF,outShape,boldDFshape,bold_ctype,regionDF,nb_of_batchs,pmapStore,prior,outDir):
+    '''
+    Initialize the process of the current pool worker with the variables 
+    commonly used across the different workers.
+    '''
     global dict_var
     dict_var={'fun4D': shared4D,
               'funDF': sharedDF,
@@ -166,7 +158,7 @@ def init_worker_regionwise(shared4D,sharedDF,outShape,boldDFshape,bold_ctype,reg
               'prior_type': prior,
               'outDir':outDir}
 
-def Regionwise_functionnectome(batch_num): # TODO: Test (and debug if needed)
+def Regionwise_functionnectome(batch_num):
     '''
     Computation of the regionwise functionnectome. Used in a pool of workers for 
     multiprocessing.
@@ -203,7 +195,7 @@ def Regionwise_functionnectome(batch_num): # TODO: Test (and debug if needed)
     logFile = os.path.join(dict_var['outDir'],f'log_{batch_num}.txt')
     if dict_var['prior_type']=='nii':
         for ii,reg in enumerate(current_split_in):
-            if not ii%50: # Write a line in the log every 50 region
+            if not ii%10: # Write a line in the log every 10 region
                 ctime = time.time()-startTime
                 logtxt = f'Region {ii} in {len(list(current_split_in))} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
                 with open(logFile, "a") as log:
@@ -211,19 +203,23 @@ def Regionwise_functionnectome(batch_num): # TODO: Test (and debug if needed)
             # Load proba map of the current region and divide it by the sum of all proba map
             region_map_img = nib.load(os.path.join(dict_var['pmapStore'],f'{reg}.nii.gz'))
             region_map = region_map_img.get_fdata(dtype=region_map_img.get_data_dtype())
-            current_split_out +=  np.expand_dims(region_map,0)*current_split_in[reg].values.reshape((len(current_split_in[reg],1,1,1)))
+            current_split_out +=  np.expand_dims(region_map,0)*current_split_in[reg].values.reshape((len(current_split_in[reg]),1,1,1))
     elif dict_var['prior_type']=='h5':
         with h5py.File(dict_var['pmapStore'], "r") as h5fout:
             for ii,reg in enumerate(current_split_in):
-                if not ii%50:
+                if not ii%10: # Write a line in the log every 10 region
                     ctime = time.time()-startTime
                     logtxt = f'Region {ii} in {len(list(current_split_in))} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
                     with open(logFile, "a") as log:
                         log.write(logtxt)
                 region_map = h5fout['tract_region'][reg][:]
-                current_split_out +=  np.expand_dims(region_map,0)*current_split_in[reg].values.reshape((len(current_split_in[reg],1,1,1)))
+                current_split_out +=  np.expand_dims(region_map,0)*current_split_in[reg].values.reshape((len(current_split_in[reg]),1,1,1))
 
 def init_worker_voxelwise(shared4Dout,bold_ctype,reShape,nb_of_batchs,sharedBold,prior,indvox_shared,pmapStore,outDir):
+    '''
+    Initialize the process of the current pool worker with the variables 
+    commonly used across the different workers.
+    '''
     global dict_var
     dict_var={'fun4Dout': shared4Dout,
               'bold_ctype': bold_ctype,
@@ -255,39 +251,46 @@ def Voxelwise_functionnectome(batch_num):
 
     '''
     startTime = time.time()
-    nbTR = dict_var['boldReshape'][0]
+    nbTR = dict_var['boldReshape'][0] # Number of volumes (TR) in the 4D data
+    
+    # Loading the 4D output data from shared memory and selecting the part to
+    # fill in the current process (should be empty)
     shared4Dout_np = np.frombuffer(dict_var['fun4Dout'],dict_var['bold_ctype']).reshape(dict_var['boldReshape'])
     split_shared4Dout_np = np.array_split(shared4Dout_np, dict_var['nb_batch'],0)
     batch_4D_out = split_shared4Dout_np[batch_num]
     
+    # Loading the input 2D array (temporal x flattened spatial) from shared memory
     shared_2D_bold_np = np.frombuffer(dict_var['bold'],dict_var['bold_ctype']).reshape((nbTR,-1))
     split_shared_2D_bold_np = np.array_split(shared_2D_bold_np, dict_var['nb_batch'],0)
     batch_bold = split_shared_2D_bold_np[batch_num].T # put back the time dim at the end
     nbTRbatch = batch_bold.shape[-1]
     
+    # Load the voxels' index (for the results to go back from 2D to 4D)
     shared_vox_ind_np = np.frombuffer(dict_var['voxel_ind'],'i').reshape((-1,3))
     
     logFile = os.path.join(dict_var['outDir'],f'log_{batch_num}.txt')
     
     if dict_var['prior_type']=='nii':
         for ii,indvox in enumerate(shared_vox_ind_np):
-            if ii%100==0:
+            if ii%100==0: # Check the progress every 100 steps
                 ctime = time.time()-startTime
                 logtxt = f'Voxel {ii} in {len(shared_vox_ind_np)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
                 with open(logFile, "a") as log:
                     log.write(logtxt)
-            vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'],f'disconnectome_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz')) # TODO: Remake the prior without the term "disconnectome"
+            # Load the probability map of the current voxel, combine it with the functional signal, and add it to the results
+            vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'],f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'))
             vox_pmap = vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
             batch_4D_out += np.expand_dims(vox_pmap,0)*batch_bold[ii].reshape((nbTRbatch,1,1,1))
             
     elif dict_var['prior_type']=='h5':
         with h5py.File(dict_var['pmapStore'], "r") as h5fout:
             for ii,indvox in enumerate(shared_vox_ind_np):
-                if ii%100==0:
+                if ii%100==0:# Check the progress every 100 steps
                     ctime = time.time()-startTime
                     logtxt = f'Voxel {ii} in {len(shared_vox_ind_np)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
                     with open(logFile, "a") as log:
                         log.write(logtxt)
+                # Load the probability map of the current voxel, combine it with the functional signal, and add it to the results
                 vox_pmap = h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][:]
                 batch_4D_out += np.expand_dims(vox_pmap,0)*batch_bold[ii].reshape((nbTRbatch,1,1,1))
 
@@ -295,6 +298,14 @@ def Voxelwise_functionnectome(batch_num):
 
 #%%
 def run_functionnectome(settingFilePath):
+    '''
+    Main functionction. Run the computation and call the other functions.
+    
+    Parameters
+    ----------
+    settingFilePath : string
+        Path to the settings file (.fcntm)
+    '''
     print('Process starting...')
     st=time.time()
     
@@ -348,7 +359,7 @@ def run_functionnectome(settingFilePath):
     
     # Checking for the existence of priors and asking what to do if none found 
     # TODO: Code the part where the script ask for missing priors
-    priors_paths={'h5_priors':'/put/your/path/here/functionnectome_7Tpriors.h5'}
+    priors_paths={'h5_priors':'/put/your/path/here/functionnectome_7Tpriors.h5'} # TODO: Temporary fix. To be removed in v0.1.0
     if not settings[-1]=='###': # If non default priors are used, override this
         pkgPath = os.path.dirname(__file__)
         priorPath = os.path.join(pkgPath,'priors_paths.json')
@@ -359,29 +370,29 @@ def run_functionnectome(settingFilePath):
                 if not os.path.exists(priors_paths['h5_priors']):
                     raise Exception("Using HDF5 priors, but the file was not found")
                 else:
-                    pass #Ask for the missing path to the user and set it in the file
+                    # TODO: Ask for the missing path to the user and set it in the file
+                    pass 
             if prior_type=='nii':
                 if priors_paths['template']:
                     if not os.path.exists(priors_paths['template']):
                         raise Exception("Using NifTI priors, but the brain template file was not found")
                 else:
-                    pass #Ask for the missing path to the user and set it in the file
+                    # TODO: Ask for the missing path to the user and set it in the file
+                    pass 
                 
                 if anatype=='region' and priors_paths['regions'] and priors_paths['region_pmap']:
                     if not (os.path.exists(priors_paths['regions']) and os.path.exists(priors_paths['region_pmap'])):
                         raise Exception("Using NifTI priors with regionwise analysis,"
                                         " but at least some of the files/folders were not found")
                     else:
-                        pass #Ask for the missing path to the user and set it in the file
+                        # TODO: Ask for the missing path to the user and set it in the file
+                        pass 
                 if anatype=='voxel' and not os.path.exists(priors_paths['voxel_pmap']):
                     raise Exception("Using NifTI priors with voxelwise analysis,"
                                     " but the folder containing the probability maps was not found")
         else:
-            #Choose the files location or download them
+            # TODO: Choose the files location or download them
             pass
-            
-            
-    
     
     # Association of the priors path with their variables
     if prior_type=='nii':
@@ -438,7 +449,7 @@ def run_functionnectome(settingFilePath):
             n+=1
         copyfile(settingFilePath,fpath) # Save the settings into the result directory
     
-    
+    # Get the basic info about the input (shape, file header, list of regions, ...) 
     if prior_type=='nii':
         # MNI template
         template_img = nib.load(template_path)
@@ -485,12 +496,13 @@ def run_functionnectome(settingFilePath):
                     header3D[key] = hdr3D[key]
                 affine3D = header3D.get_sform()
     
-    #%%
+    #%% Start the loop over all the input files (i.e. "subjects")
     for isub,boldf in enumerate(bold_paths): 
         
-        decomposedPath = tuple(filter(None, boldf.split('/')))
+        # Retrieve the unique ID of the current subject from the path
+        decomposedPath = tuple(filter(None, os.path.normpath(boldf).split(os.path.sep))) # cf. the GUI
         if (subIDpos==len(decomposedPath)-1) or subIDpos==-1:# case where subject ID is the BOLD file's name
-            subID = decomposedPath[subIDpos].replace('.gz','').replace('.nii','')
+            subID = decomposedPath[subIDpos].replace('.gz','').replace('.nii','') # REmove extension
         else:
             subID = decomposedPath[subIDpos]
         print(f'Processing subject {subID} in {anatype}wise analysis')
@@ -510,13 +522,10 @@ def run_functionnectome(settingFilePath):
             logname = 'old_' + os.path.basename(oldlog)
             os.rename(oldlog,os.path.join(results_dir,logname))
         
-        
-        
-        #%%
+        #%% Run the regionwise analysis
         if anatype=='region':
             
-            # Launchin parallel processing 1
-            # => Sum all the regions' probability maps for later normalization
+            # Launching parallel processing for the sum all the regions' probability maps for later normalization
             sumpath = os.path.join(results_dir_root,'sum_probaMaps_regions.nii.gz')
             if not os.path.exists(sumpath):
                 with multiprocessing.Pool(processes=nb_of_batchs,
@@ -528,10 +537,12 @@ def run_functionnectome(settingFilePath):
                                           ) as pool:
                     print('Launching parallel computation: Sum of probability maps')
                     out_batch_sum = pool.map_async(Sum_regionwise_pmaps,regions_batchs)
+                    # Diplay the progress
                     while not out_batch_sum.ready():
                         LogDiplayPercent(results_dir)
                         time.sleep(1)
-                    print()
+                    sys.stdout.write("\rProgress of the current process: 100%\n")
+                    sys.stdout.flush()
                     out_batch_sum = out_batch_sum.get()
                     logfiles = glob.glob(os.path.join(results_dir,'log_*.txt'))
                     for logf in logfiles:
@@ -584,7 +595,7 @@ def run_functionnectome(settingFilePath):
             # Release the RAM
             bold_vol=bold_img=None
                   
-            # Launchin parallel processing 2 
+            # Launching parallel processing for the functionnectome computation proper
             if np.dtype(bold_dtype) is np.dtype('float32'):
                 bold_ctype = 'f'
             elif np.dtype(bold_dtype) is np.dtype('float64'):
@@ -621,10 +632,12 @@ def run_functionnectome(settingFilePath):
                                                 results_dir)
                                       ) as pool:
                 poolCheck = pool.map_async(Regionwise_functionnectome,range(nb_of_batchs))
+                # Diplay the progress
                 while not poolCheck.ready():
                     LogDiplayPercent(results_dir)
                     time.sleep(1)
-                print()
+                sys.stdout.write("\rProgress of the current process: 100%\n")
+                sys.stdout.flush()
                 logfiles = glob.glob(os.path.join(results_dir,'log_*.txt'))
                 for logf in logfiles:
                     os.remove(logf)
@@ -636,13 +649,15 @@ def run_functionnectome(settingFilePath):
                                        out=sum_pmap4D_all,
                                        where=np.expand_dims(sum_pmap_all,0)!=0) 
             sum_pmap4D_all = np.moveaxis(sum_pmap4D_all, 0, -1)
+            # Masking the output with the template
             if maskOutput:
                 sum_pmap4D_all *= np.expand_dims(template_vol,-1)
+            # Saving the results
             sum_pmap4D_img = nib.Nifti1Image(sum_pmap4D_all,bold_affine,bold_header)
             nib.save(sum_pmap4D_img,finalOutPath)
-            time.sleep(5)
+            time.sleep(5) # Waiting a bit, just in case...
             sum_pmap4D_img=sum_pmap4D_all=None
-        #%%
+        #%% Run the voxelwise analysis
         elif anatype=='voxel':
             
             # Loading subject's mask, restriction to voxels inside the template, and getting the list of voxels' indexes
@@ -680,10 +695,12 @@ def run_functionnectome(settingFilePath):
                                                     results_dir)
                                           ) as pool:
                     out_batch_sum = pool.map_async(Sum_voxelwise_pmaps,split_ind)
+                    # Diplay the progress
                     while not out_batch_sum.ready():
                         LogDiplayPercent(results_dir)
                         time.sleep(1)
-                    print()
+                    sys.stdout.write("\rProgress of the current process: 100%\n")
+                    sys.stdout.flush()
                     out_batch_sum=out_batch_sum.get()
                     logfiles = glob.glob(os.path.join(results_dir,'log_*.txt'))
                     for logf in logfiles:
@@ -724,7 +741,7 @@ def run_functionnectome(settingFilePath):
             
             #Creating shared memory variables accessed by the parrallel processes
             bold_shape = bold_vol.shape
-            bold_vol_2D = bold_vol[ind_mask1]
+            bold_vol_2D = bold_vol[ind_mask1] #Select the voxels from the mask => makes a 2D array (flattened sptial x temporal)
             bold_vol=bold_img=ind_mask1=None # Release the RAM
             bold_2D_shared = multiprocessing.RawArray(bold_ctype, int(np.prod(bold_vol_2D.shape)))
             bold_2D_shared_np = np.frombuffer(bold_2D_shared,bold_ctype).reshape(bold_vol_2D.T.shape) # To manipulate the RawArray as a numpy array
@@ -754,10 +771,12 @@ def run_functionnectome(settingFilePath):
                                                 results_dir)
                                     ) as pool:
                 poolCheck = pool.map_async(Voxelwise_functionnectome,range(nb_of_batchs))
+                # Diplay the progress
                 while not poolCheck.ready():
                     LogDiplayPercent(results_dir)
                     time.sleep(1)
-                print()
+                sys.stdout.write("\rProgress of the current process: 100%    \n")
+                sys.stdout.flush()
                 logfiles = glob.glob(os.path.join(results_dir,'log_*.txt'))
                 for logf in logfiles:
                     os.remove(logf)
@@ -774,6 +793,7 @@ def run_functionnectome(settingFilePath):
             # Masking out the stray voxels out of the brain
             if maskOutput:
                 sum_pmap4D_all *= np.expand_dims(template_vol,-1)
+            # Saving the results
             sum_pmap4D_img = nib.Nifti1Image(sum_pmap4D_all,bold_affine,bold_header)
             nib.save(sum_pmap4D_img,finalOutPath)
             time.sleep(5)
@@ -783,5 +803,6 @@ def run_functionnectome(settingFilePath):
 
 #%% Run the code if the script is called directly, the path to the setting file must be given as argument
 if __name__ == '__main__':
-    settingFilePath = sys.argv[1]
+    # settingFilePath = sys.argv[1]
+    settingFilePath = '/beegfs_data/scratch/nozais-HCP7T/test/settings4.fcntm'
     run_functionnectome(settingFilePath)

@@ -1,0 +1,27 @@
+Output folder:
+	/myHome/myProject/task1/outDir
+Analysis ('voxel' or 'region'):
+	voxel
+Number of parallel processes:
+	12
+Priors stored as ('h5' or 'nii'):
+	h5
+Position of the subjects ID in their path:
+	4
+Mask the output:
+	1
+Number of subjects:
+	4
+Number of masks:
+	4
+Subject's BOLD paths:
+/myHome/myProject/task1/BOLDdata/subject01/tfMRI_TASK1.nii.gz
+/myHome/myProject/task1/BOLDdata/subject02/tfMRI_TASK1.nii.gz
+/myHome/myProject/task1/BOLDdata/subject03/tfMRI_TASK1.nii.gz
+/myHome/myProject/task1/BOLDdata/subject04/tfMRI_TASK1.nii.gz
+
+Masks for voxelwise analysis:
+/myHome/myProject/task1/masks/subject01/fMask_TASK1.nii.gz
+/myHome/myProject/task1/masks/subject02/fMask_TASK1.nii.gz
+/myHome/myProject/task1/masks/subject03/fMask_TASK1.nii.gz
+/myHome/myProject/task1/masks/subject04/fMask_TASK1.nii.gz

@@ -43,7 +43,7 @@ def LogDiplayPercent(logDir): # Don't forget to put a 'print("\n100%")' after th
         totalLen = int(spiltLine[3]) # Should be the same for all the logs
     meanProgress = sum(currentLen)/len(currentLen)
     percentProgress = round(100*meanProgress/totalLen,2)
-    sys.stdout.write(f"\rProgress of the current process: {percentProgress}%  ")
+    sys.stdout.write(f"\rProgress of the current process: {percentProgress}%   ")
     sys.stdout.flush()
 
 def init_worker_sumPmaps(templShape,pmapStore,prior,outDir):
@@ -119,7 +119,7 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
     logFile = os.path.join(dict_var['outDir'],f'log_{current._identity[0]}.txt')
     if dict_var['prior_type']=='nii':
         for ii,indvox in enumerate(ind_voxels_batch):
-            if ii%1000==0:
+            if ii%100==0:
                 ctime = time.time()-startTime
                 logtxt = f'Voxel {ii} in {len(ind_voxels_batch)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
                 with open(logFile, "a") as log:
@@ -131,7 +131,7 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
     elif dict_var['prior_type']=='h5':
         with h5py.File(dict_var['pmapStore'], "r") as h5fout:
             for ii,indvox in enumerate(ind_voxels_batch):
-                if not ii%500:
+                if not ii%100:
                     ctime = time.time()-startTime
                     logtxt = f'Voxel {ii} in {len(ind_voxels_batch)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
                     with open(logFile, "a") as log:
@@ -495,16 +495,19 @@ def run_functionnectome(settingFilePath):
                 for key in header3D.keys():
                     header3D[key] = hdr3D[key]
                 affine3D = header3D.get_sform()
-    
-    #%% Start the loop over all the input files (i.e. "subjects")
-    for isub,boldf in enumerate(bold_paths): 
-        
-        # Retrieve the unique ID of the current subject from the path
+                
+    # Retrieves all subjects' unique IDs from their path
+    IDs=[]
+    for boldf in bold_paths:
         decomposedPath = tuple(filter(None, os.path.normpath(boldf).split(os.path.sep))) # cf. the GUI
         if (subIDpos==len(decomposedPath)-1) or subIDpos==-1:# case where subject ID is the BOLD file's name
             subID = decomposedPath[subIDpos].replace('.gz','').replace('.nii','') # REmove extension
         else:
             subID = decomposedPath[subIDpos]
+        IDs.append(subID)
+    #%% Start the loop over all the input files (i.e. "subjects")
+    for isub,subID,boldf in zip(range(len(bold_paths)),IDs,bold_paths): 
+        
         print(f'Processing subject {subID} in {anatype}wise analysis')
         results_dir = os.path.join(results_dir_root, anatype + 'wise_analysis',subID)
         finalOutPath = os.path.join(results_dir,'functionnectome.nii.gz')
@@ -541,7 +544,7 @@ def run_functionnectome(settingFilePath):
                     while not out_batch_sum.ready():
                         LogDiplayPercent(results_dir)
                         time.sleep(1)
-                    sys.stdout.write("\rProgress of the current process: 100%\n")
+                    sys.stdout.write("\rProgress of the current process: 100%    \n")
                     sys.stdout.flush()
                     out_batch_sum = out_batch_sum.get()
                     logfiles = glob.glob(os.path.join(results_dir,'log_*.txt'))
@@ -636,7 +639,7 @@ def run_functionnectome(settingFilePath):
                 while not poolCheck.ready():
                     LogDiplayPercent(results_dir)
                     time.sleep(1)
-                sys.stdout.write("\rProgress of the current process: 100%\n")
+                sys.stdout.write("\rProgress of the current process: 100%    \n")
                 sys.stdout.flush()
                 logfiles = glob.glob(os.path.join(results_dir,'log_*.txt'))
                 for logf in logfiles:
@@ -683,7 +686,12 @@ def run_functionnectome(settingFilePath):
             split_ind = np.array_split(ind_mask2,nb_of_batchs)
             
             # Summing all the proba maps, for later "normalization"
-            sumpath = os.path.join(results_dir, 'sum_probaMaps_voxel.nii.gz')
+            if len(masks_vox)==1:
+                firstSubRes = os.path.join(results_dir_root, anatype + 'wise_analysis',IDs[0])
+                sumpath = os.path.join(firstSubRes, 'sum_probaMaps_voxel.nii.gz')
+            else:
+                sumpath = os.path.join(results_dir, 'sum_probaMaps_voxel.nii.gz')
+                
             if not os.path.exists(sumpath):
                 
                 print('Launching parallel computation: Sum of Probability maps')
@@ -699,7 +707,7 @@ def run_functionnectome(settingFilePath):
                     while not out_batch_sum.ready():
                         LogDiplayPercent(results_dir)
                         time.sleep(1)
-                    sys.stdout.write("\rProgress of the current process: 100%\n")
+                    sys.stdout.write("\rProgress of the current process: 100%    \n")
                     sys.stdout.flush()
                     out_batch_sum=out_batch_sum.get()
                     logfiles = glob.glob(os.path.join(results_dir,'log_*.txt'))

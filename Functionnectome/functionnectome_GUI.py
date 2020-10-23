@@ -245,7 +245,11 @@ class Functionnectome_GUI(tk.Tk):
         btn_cancel.grid(column=0, row=4, pady=10, sticky='w')
         btn_ok.grid(column=2, row=4, pady=10, sticky='ew')
         
-        nbmask.set('subjectwise')
+        if len(self.mask_paths_tmp)==1:
+            nbmask.set('common')
+        else:
+            nbmask.set('subjectwise')
+        
     #%%
     def launchAna(self): #Create output folder, close the GUI and run the analysis
         settingsTxt = self.saveSettings()
@@ -443,7 +447,7 @@ class Functionnectome_GUI(tk.Tk):
             return 0
         
         posID = (self.subInPath.get() if self.exPath else '-1')
-        firstSep = 1 if self.bold_paths[0][0]==os.path.sep else 0
+        firstSep = 1 if (self.bold_paths[0][0]==os.path.sep and posID>0) else 0
         listID = [os.path.normpath(boldpath).split(os.path.sep)[int(posID)+firstSep] for boldpath in self.bold_paths]
         if len(set(listID))<len(listID): # If the subjects' ID are not all unique
             tk.messagebox.showwarning('Non-unique subject ID',

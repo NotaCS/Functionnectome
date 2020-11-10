@@ -447,7 +447,7 @@ class Functionnectome_GUI(tk.Tk):
             return 0
         
         posID = (self.subInPath.get() if self.exPath else '-1')
-        firstSep = 1 if (self.bold_paths[0][0]==os.path.sep and posID>0) else 0
+        firstSep = 1 if (self.bold_paths[0][0]==os.path.sep and int(posID)>0) else 0
         listID = [os.path.normpath(boldpath).split(os.path.sep)[int(posID)+firstSep] for boldpath in self.bold_paths]
         if len(set(listID))<len(listID): # If the subjects' ID are not all unique
             tk.messagebox.showwarning('Non-unique subject ID',

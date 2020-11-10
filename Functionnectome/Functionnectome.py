@@ -24,7 +24,7 @@ from pathlib import Path
 import pandas as pd
 
 #%%
-def LogDiplayPercent(logDir): # Don't forget to put a 'print("\n100%")' after the function
+def LogDiplayPercent(logDir,previous_percent=0): # Don't forget to put a 'print("\n100%")' after the function
     '''
     Check the logs in logDir and display the progress in percent (look at the 
     last line of each log).
@@ -43,8 +43,10 @@ def LogDiplayPercent(logDir): # Don't forget to put a 'print("\n100%")' after th
         totalLen = int(spiltLine[3]) # Should be the same for all the logs
     meanProgress = sum(currentLen)/len(currentLen)
     percentProgress = round(100*meanProgress/totalLen,2)
-    sys.stdout.write(f"\rProgress of the current process: {percentProgress}%   ")
-    sys.stdout.flush()
+    if not percentProgress == previous_percent:
+        sys.stdout.write(f"\rProgress of the current process: {percentProgress}%   ")
+        sys.stdout.flush()
+    return percentProgress
 
 def init_worker_sumPmaps(templShape,pmapStore,prior,outDir):
     '''
@@ -541,8 +543,9 @@ def run_functionnectome(settingFilePath):
                     print('Launching parallel computation: Sum of probability maps')
                     out_batch_sum = pool.map_async(Sum_regionwise_pmaps,regions_batchs)
                     # Diplay the progress
+                    percent = None # to keep track of the preivous
                     while not out_batch_sum.ready():
-                        LogDiplayPercent(results_dir)
+                        percent = LogDiplayPercent(results_dir,percent)
                         time.sleep(1)
                     sys.stdout.write("\rProgress of the current process: 100%    \n")
                     sys.stdout.flush()
@@ -636,8 +639,9 @@ def run_functionnectome(settingFilePath):
                                       ) as pool:
                 poolCheck = pool.map_async(Regionwise_functionnectome,range(nb_of_batchs))
                 # Diplay the progress
+                percent = None # to keep track of the preivous
                 while not poolCheck.ready():
-                    LogDiplayPercent(results_dir)
+                    percent = LogDiplayPercent(results_dir,percent)
                     time.sleep(1)
                 sys.stdout.write("\rProgress of the current process: 100%    \n")
                 sys.stdout.flush()
@@ -704,8 +708,9 @@ def run_functionnectome(settingFilePath):
                                           ) as pool:
                     out_batch_sum = pool.map_async(Sum_voxelwise_pmaps,split_ind)
                     # Diplay the progress
+                    percent = None # to keep track of the preivous
                     while not out_batch_sum.ready():
-                        LogDiplayPercent(results_dir)
+                        percent = LogDiplayPercent(results_dir,percent)
                         time.sleep(1)
                     sys.stdout.write("\rProgress of the current process: 100%    \n")
                     sys.stdout.flush()
@@ -779,9 +784,10 @@ def run_functionnectome(settingFilePath):
                                                 results_dir)
                                     ) as pool:
                 poolCheck = pool.map_async(Voxelwise_functionnectome,range(nb_of_batchs))
+                percent = None # to keep track of the preivous
                 # Diplay the progress
                 while not poolCheck.ready():
-                    LogDiplayPercent(results_dir)
+                    percent = LogDiplayPercent(results_dir,percent)
                     time.sleep(1)
                 sys.stdout.write("\rProgress of the current process: 100%    \n")
                 sys.stdout.flush()
@@ -817,3 +823,28 @@ if __name__ == '__main__':
         warnings.warn("Python version < 3.6 |nIt might not work. Consider updating.")
     settingFilePath = sys.argv[1]
     run_functionnectome(settingFilePath)
+
+#%% Compute the tmap and pmap of "functionnectome" for the POC 3 RSN (functionnectome = derived from stack of RSN maps)
+from scipy.stats import ttest_1samp
+maskimg = nib.load('/beegfs_data/scratch/nozais-functionnectome/template_MNI_2mm/MNI152_T1_2mm_brain.nii.gz')
+mask = maskimg.get_fdata().astype(bool)
+
+# funtomeMMc_img = nib.load("/beegfs_data/scratch/nozais-functionnectome/colab_marc/POC_3RSN/withGMmask/voxelwise_analysis/BG_RSN_21/functionnectome_MMcorrected.nii.gz")
+funtomeMMc_img = nib.load("/beegfs_data/scratch/nozais-functionnectome/colab_marc/BG_RSN_21.nii.gz")
+funtomeMMc = funtomeMMc_img.get_fdata()
+funtomeMMcf = funtomeMMc.reshape((-1,funtomeMMc.shape[-1]))[mask.flatten(),:]
+funtomeMMcf = np.nan_to_num(funtomeMMcf)
+res_Ttest = ttest_1samp(funtomeMMcf,0,-1)
+tmap=np.zeros((91,109,91))
+tmap[mask] = res_Ttest[0]
+tmap_img = nib.Nifti1Image(tmap,maskimg.affine)
+# nib.save(tmap_img,'/beegfs_data/scratch/nozais-functionnectome/colab_marc/POC_3RSN/withGMmask/voxelwise_analysis/BG_RSN_21/tmap_mmc.nii.gz')
+nib.save(tmap_img,'/beegfs_data/scratch/nozais-functionnectome/colab_marc/POC_3RSN/withGMmask/voxelwise_analysis/BG_RSN_21/tmap_rawRSNz.nii.gz')
+
+
+
+
+
+
+
+

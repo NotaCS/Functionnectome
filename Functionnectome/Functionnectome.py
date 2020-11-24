@@ -9,7 +9,6 @@ Main script used for the computation of functionnectomes.
 
 "pmap" = probability map (= group level visitation map)
 
-TODO : Add an ETA.
 Regionwise and voxelwise analyses started quite differently, but they kind of 
 converged on the same algorithm, so I might have to fuse them together later...
 """
@@ -24,7 +23,7 @@ from pathlib import Path
 import pandas as pd
 
 #%%
-def LogDiplayPercent(logDir,previous_percent=0): # Don't forget to put a 'print("\n100%")' after the function
+def LogDiplayPercent(logDir,previous_percent=0): # Don't forget to put a 'print("\n100%")' or equivalent after the function
     '''
     Check the logs in logDir and display the progress in percent (look at the 
     last line of each log).
@@ -34,17 +33,36 @@ def LogDiplayPercent(logDir,previous_percent=0): # Don't forget to put a 'print(
         print('Process starting...')
         return
     currentLen = []
+    maxETA=0 #Store the longest ETA  among the parallel processes
     for logf in logList:
         with open(logf, "r") as lf:
-            for line in lf: pass # Go to the last line
-            if not line: return # There is nothing in the file, stop the function
-            spiltLine = line.split(' ')
-        currentLen.append(int(spiltLine[1]))
-        totalLen = int(spiltLine[3]) # Should be the same for all the logs
+            logtxt = lf.readlines() #Shouldn't be too big
+        lastline = logtxt[-1]
+        spiltLastLine = lastline.split(' ')
+        procLen = int(spiltLastLine[1])
+        currentLen.append(procLen)
+        totalLen = int(spiltLastLine[3]) # Should be the same for all the logs
+        if len(logtxt)>1:
+            prevline = logtxt[-2]
+            spiltPrevLine = prevline.split(' ')
+            timestep = int(spiltLastLine[5])*60 + int(spiltLastLine[8]) - (int(spiltPrevLine[5])*60 + int(spiltPrevLine[8]))
+            stepLength = int(spiltLastLine[1]) - int(spiltPrevLine[1])
+            procETA = round(timestep*(totalLen-procLen)/stepLength)
+            if procETA > maxETA:
+                maxETA = procETA
     meanProgress = sum(currentLen)/len(currentLen)
     percentProgress = round(100*meanProgress/totalLen,2)
+    if maxETA:
+        hours = maxETA//3600
+        minutes = maxETA%3600//60
+        if minutes+hours>0:
+            ETA = f'{hours}h and {minutes}min'
+        else:
+            ETA = '< 1 min'
+    else:
+        ETA = '...'
     if not percentProgress == previous_percent:
-        sys.stdout.write(f"\rProgress of the current process: {percentProgress}%   ")
+        sys.stdout.write(f"\rProgress of the current process: {percentProgress}% ETA: {ETA}      ")
         sys.stdout.flush()
     return percentProgress
 

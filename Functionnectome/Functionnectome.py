@@ -9,20 +9,114 @@ Main script used for the computation of functionnectomes.
 
 "pmap" = probability map (= group level visitation map)
 
-Regionwise and voxelwise analyses started quite differently, but they kind of 
+TODO:Regionwise and voxelwise analyses started quite differently, but they kind of 
 converged on the same algorithm, so I might have to fuse them together later...
 """
 
 
-import os, sys, glob, time, warnings, multiprocessing, json
-from shutil import copyfile
+import os, sys, glob, time, warnings, multiprocessing, json, shutil, zipfile, threading
+from urllib.request import urlopen
+import tkinter as tk
+from tkinter import filedialog
 import h5py
 import numpy as np
 import nibabel as nib
 from pathlib import Path
 import pandas as pd
 
-#%%
+#%% Additionnal GUI and interactive functions
+def check_DLprogress(datasize,zipname):
+    ''' Check the progress of the DL '''
+    percentProgress = 0
+    prog_thread = threading.currentThread()
+    while getattr(prog_thread, "do_run", True):
+        if os.path.exists(zipname):
+            dl_size = os.path.getsize(zipname)
+            percentProgress = round(100*dl_size/datasize)
+            sys.stdout.write(f"\rDownloading progress: {percentProgress}%       ")
+            sys.stdout.flush()
+            if percentProgress>=100: break
+        time.sleep(1)
+    
+def Download_H5(prior_dirpath_h5):
+    dl_url = 'https://www.dropbox.com/s/22vix4krs2zgtnt/functionnectome_7TpriorsH5.zip?dl=1'
+    zipname = os.path.join(prior_dirpath_h5,'functionnectome_7TpriorsH5.zip')
+    print('Downloading the priors...')
+    with urlopen(dl_url) as response, open(zipname, 'wb') as out_file:
+        datasize=int(response.getheader('content-length'))
+        prog_thread = threading.Thread(target=check_DLprogress, args=(datasize,zipname), daemon=True)
+        prog_thread.start()
+        shutil.copyfileobj(response, out_file)
+        prog_thread.do_run = False
+        prog_thread.join()
+        sys.stdout.write("\rDownloading progress: 100%           \n")
+        sys.stdout.flush()
+    
+    print('Unzipping...')
+    with zipfile.ZipFile(zipname, 'r') as zip_ref:
+        zip_ref.extractall(prior_dirpath_h5)
+    os.remove(zipname)
+    print('Done')
+
+
+class Ask_hdf5_path(tk.Tk):
+    '''
+    Ask of the path to the priors in HDF5 file, or ask offer to download them
+    Works with a GUI if the Functionnecomte has been launched from the GUI, with command lines otherwise
+
+    Returns the path to the HDF5 priors file, or False if the action was canceled
+
+    '''
+    def __init__(self):
+        super().__init__()
+        
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        size = tuple(int(_) for _ in self.geometry().split('+')[0].split('x'))
+        x = screen_width/2 - size[0]/2
+        y = screen_height/2 - size[1]/2
+        self.geometry("+%d+%d" % (x, y))
+        
+        self.title("Acquisition of HDF5 file for priors")
+        self.prior_path_h5='' #Where the file path to the priors will be stored
+        self.home = os.path.expanduser("~")
+        msg = "No HDF5 priors file was found. If you already downloaded it, select select the file. Otherwise download it."
+        self.lbl = tk.Label(self, text=msg)
+        self.lbl.grid(column=0, row=0, columnspan=3)
+        
+        self.btnDL = tk.Button(self, text='Download priors', command=self.Btn_DL_priors)
+        self.btnDL.grid(column=0, row=1)
+        
+        self.btnSelect = tk.Button(self, text='Select priors file', command=self.Btn_select_folder)
+        self.btnSelect.grid(column=1, row=1)
+        
+        self.btnCancel = tk.Button(self, text='Cancel', command=self.destroy)
+        self.btnCancel.grid(column=2, row=1)
+        
+        
+        
+    def Btn_DL_priors(self):
+        prior_dirpath_h5 = filedialog.askdirectory(initialdir=self.home,
+                                                   parent=self,
+                                                   title='Choose where to save the priors')
+        if prior_dirpath_h5:
+            self.prior_path_h5 = os.path.join(prior_dirpath_h5,'functionnectome_7Tpriors.h5') # Should be the final priors path
+            self.destroy()
+            Download_H5(prior_dirpath_h5)
+            
+    def Btn_select_folder(self):
+        self.prior_path_h5 = filedialog.askopenfilename(parent=self,
+                                                        initialdir=self.home,
+                                                        title='Select the HDF5 priors file',
+                                                        filetypes=[("HDF5 files", ".h5 .hdf5")])
+        if self.prior_path_h5:
+            self.destroy()
+
+
+
+
+
+#%% Main functions
 def LogDiplayPercent(logDir,previous_percent=0): # Don't forget to put a 'print("\n100%")' or equivalent after the function
     '''
     Check the logs in logDir and display the progress in percent (look at the 
@@ -43,7 +137,10 @@ def LogDiplayPercent(logDir,previous_percent=0): # Don't forget to put a 'print(
         currentLen.append(procLen)
         totalLen = int(spiltLastLine[3]) # Should be the same for all the logs
         if len(logtxt)>1:
-            prevline = logtxt[-2]
+            prevStep = -2
+            while prevStep > -len(logtxt) and prevStep>-6: # Compute the ETA using up to 5 step removed
+                prevStep -= 1
+            prevline = logtxt[prevStep]
             spiltPrevLine = prevline.split(' ')
             timestep = int(spiltLastLine[5])*60 + int(spiltLastLine[8]) - (int(spiltPrevLine[5])*60 + int(spiltPrevLine[8]))
             stepLength = int(spiltLastLine[1]) - int(spiltPrevLine[1])
@@ -51,7 +148,7 @@ def LogDiplayPercent(logDir,previous_percent=0): # Don't forget to put a 'print(
             if procETA > maxETA:
                 maxETA = procETA
     meanProgress = sum(currentLen)/len(currentLen)
-    percentProgress = round(100*meanProgress/totalLen,2)
+    percentProgress = round(100*meanProgress/totalLen,3)
     if maxETA:
         hours = maxETA//3600
         minutes = maxETA%3600//60
@@ -99,6 +196,7 @@ def Sum_regionwise_pmaps(regions_batch):
     '''
     Function given to the pool of workers in parallel.
     Compute the sum of all regions' probability maps.
+    Also checks if all the necessary files are there
     '''
     current = multiprocessing.current_process()
     startTime = time.time()
@@ -110,7 +208,13 @@ def Sum_regionwise_pmaps(regions_batch):
                 logtxt = f'Region {ii} in {len(regions_batch)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
                 with open(logFile, "a") as log:
                     log.write(logtxt)
-            region_pmap_img = nib.load(os.path.join(dict_var['pmapStore'],f'{reg}.nii.gz'))
+            try:
+                region_pmap_img = nib.load(os.path.join(dict_var['pmapStore'],f'{reg}.nii.gz'))
+            except:
+                logtxt = f'Region {reg} does not have an associated pmap. Closing the process...\n'
+                with open(logFile, "a") as log:
+                    log.write(logtxt)
+                return None
             if ii==0:
                 sum_pmap=np.zeros(dict_var['templateShape'],dtype=region_pmap_img.get_data_dtype())
             try:
@@ -125,14 +229,22 @@ def Sum_regionwise_pmaps(regions_batch):
                     logtxt = f'Region {ii} in {len(regions_batch)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
                     with open(logFile, "a") as log:
                         log.write(logtxt)
-                if ii==0 : sum_pmap=np.zeros(dict_var['templateShape'],dtype=h5fout['tract_region'][reg].dtype)
-                sum_pmap += h5fout['tract_region'][reg][:]
+                if ii==0:
+                    sum_pmap = np.zeros(dict_var['templateShape'],dtype=h5fout['tract_region'][reg].dtype)
+                try:
+                    sum_pmap += h5fout['tract_region'][reg][:]
+                except:
+                    logtxt = f'Region {reg} does not have an associated pmap. Closing the process...\n'
+                    with open(logFile, "a") as log:
+                        log.write(logtxt)
+                    return None
     return sum_pmap
 
 def Sum_voxelwise_pmaps(ind_voxels_batch):
     '''
     Function given to the pool of workers in parallel.
     Compute the sum of all selected voxels' probability maps.
+    Also checks if all the necessary files are there
     '''
     current = multiprocessing.current_process()
     startTime = time.time()
@@ -144,7 +256,13 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
                 logtxt = f'Voxel {ii} in {len(ind_voxels_batch)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
                 with open(logFile, "a") as log:
                     log.write(logtxt)
-            vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'],f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'))
+            try:
+                vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'],f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'))
+            except:
+                logtxt = f'Voxel {indvox[0]}_{indvox[1]}_{indvox[2]} does not have an associated pmap. Closing the process...\n'
+                with open(logFile, "a") as log:
+                    log.write(logtxt)
+                return None
             if ii==0:
                 sum_pmap = np.zeros(dict_var['templateShape'], dtype=vox_pmap_img.get_data_dtype())
             sum_pmap += vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
@@ -158,7 +276,13 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
                         log.write(logtxt)
                 if ii==0:
                     sum_pmap=np.zeros(dict_var['templateShape'],dtype=h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'].dtype)
-                sum_pmap += h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][:]
+                try:
+                    sum_pmap += h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][:]
+                except:
+                    logtxt = f'Voxel {indvox[0]}_{indvox[1]}_{indvox[2]} does not have an associated pmap. Closing the process...\n'
+                    with open(logFile, "a") as log:
+                        log.write(logtxt)
+                    return None
     return sum_pmap
 
 def init_worker_regionwise(shared4D,sharedDF,outShape,boldDFshape,bold_ctype,regionDF,nb_of_batchs,pmapStore,prior,outDir):
@@ -317,7 +441,7 @@ def Voxelwise_functionnectome(batch_num):
 
 
 #%%
-def run_functionnectome(settingFilePath):
+def run_functionnectome(settingFilePath,from_GUI=False):
     '''
     Main functionction. Run the computation and call the other functions.
     
@@ -377,44 +501,166 @@ def run_functionnectome(settingFilePath):
             opt_pmap_region_loc = settings[-4]
             opt_regions_loc = settings[-2]
     
-    # Checking for the existence of priors and asking what to do if none found 
-    # TODO: Code the part where the script ask for missing priors
-    priors_paths={'h5_priors':'/put/your/path/here/functionnectome_7Tpriors.h5'} # TODO: Temporary fix. To be removed in v0.1.0
+    #%% Checking for the existence of priors and asking what to do if none found 
     if not settings[-1]=='###': # If non default priors are used, override this
         pkgPath = os.path.dirname(__file__)
         priorPath = os.path.join(pkgPath,'priors_paths.json')
         if os.path.exists(priorPath):
+            newJson = False
             with open(priorPath,'r') as pP:
                 priors_paths = json.load(pP)
-            if prior_type=='h5' and priors_paths['h5_priors']:
-                if not os.path.exists(priors_paths['h5_priors']):
-                    raise Exception("Using HDF5 priors, but the file was not found")
+        else: # Create a new dict to store the filepaths, filled below
+            newJson = True
+            priors_paths = {'template':'',
+                            'regions':'',
+                            'region_pmap':'',
+                            'voxel_pmap':'',
+                            'h5_priors':''}
+            
+        if prior_type=='h5':
+            if not (priors_paths['h5_priors'] and os.path.exists(priors_paths['h5_priors'])):
+                # Missing h5 priors, so downloading required
+                newJson = True
+                h5P = ''
+                if from_GUI:
+                    ask_h5 = Ask_hdf5_path()
+                    ask_h5.mainloop()
+                    h5P = ask_h5.prior_path_h5
                 else:
-                    # TODO: Ask for the missing path to the user and set it in the file
-                    pass 
-            if prior_type=='nii':
-                if priors_paths['template']:
-                    if not os.path.exists(priors_paths['template']):
-                        raise Exception("Using NifTI priors, but the brain template file was not found")
-                else:
-                    # TODO: Ask for the missing path to the user and set it in the file
-                    pass 
-                
-                if anatype=='region' and priors_paths['regions'] and priors_paths['region_pmap']:
-                    if not (os.path.exists(priors_paths['regions']) and os.path.exists(priors_paths['region_pmap'])):
-                        raise Exception("Using NifTI priors with regionwise analysis,"
-                                        " but at least some of the files/folders were not found")
+                    askDL = input("No HDF5 priors file was found. To download it, type 'D' and Enter. "
+                                  "If you already downloaded it before, type 'S' and Enter, then provide the path to the file.\n"
+                                  "D : Download / S : Select\n")
+                    if askDL.upper().strip()=='D':
+                        prior_dirpath_h5 = input('Type (or paste) the path to the folder where you want to save the priors:\n')
+                        if prior_dirpath_h5:
+                            Download_H5(prior_dirpath_h5)
+                            h5P = os.path.join(prior_dirpath_h5,'functionnectome_7TpriorsH5.zip')
+                    elif askDL.upper().strip()=='S':
+                        h5P = input('Type (or paste) the path to the HDF5 priors file:\n')
                     else:
-                        # TODO: Ask for the missing path to the user and set it in the file
-                        pass 
-                if anatype=='voxel' and not os.path.exists(priors_paths['voxel_pmap']):
-                    raise Exception("Using NifTI priors with voxelwise analysis,"
-                                    " but the folder containing the probability maps was not found")
-        else:
-            # TODO: Choose the files location or download them
-            pass
-    
-    # Association of the priors path with their variables
+                        print('Wrong entry (neither D nor S). Canceled...')
+                     
+                if os.path.exists(h5P):
+                    priors_paths['h5_priors'] = h5P
+                    print(f'Selected file for HDF5 priors : {h5P}')
+                else:
+                    raise Exception('No path to the priors file was provided. Stopping the program.')
+                    
+        if prior_type=='nii':
+            if not (priors_paths['template'] and os.path.exists(priors_paths['template'])):
+                # Missing template in priors
+                newJson = True
+                templP = ''
+                if from_GUI:
+                    root = tk.Tk()
+                    root.withdraw()
+                    canc = tk.messagebox.askokcancel('No template found','No brain template found. Select the file?')
+                    templP = ''
+                    if canc:
+                        home = os.path.expanduser("~")
+                        templP = filedialog.askopenfilename(parent=root,
+                                                            initialdir=home,
+                                                            title='Select the brain template',
+                                                            filetypes=[("NIfTI", ".nii .nii.gz")])
+                    root.destroy()
+                else:
+                    templP = input('No brain template found.\nType (or paste) the path to the file:\n')
+                if os.path.exists(templP):
+                    priors_paths['template'] = templP
+                    print(f'Selected file for brain template : {templP}')
+                else:
+                    raise Exception("Using NifTI priors, but no brain template was provided. Stopping the program.")
+            
+            if anatype=='region':
+                if not (priors_paths['regions'] and os.path.exists(priors_paths['regions'])):
+                    # missing folder containing the masks of each brain region
+                    newJson = True
+                    regP = ''
+                    if from_GUI:
+                        root = tk.Tk()
+                        root.withdraw()
+                        canc = tk.messagebox.askokcancel("Brain regions masks not found",
+                                                         "The folder containing the brain regions was not found.\n"
+                                                         "Select the folder?\n"
+                                                         "/!\\ Don't forget to open (i.e. double-click on) the last selected folder")
+                        regP = ''
+                        if canc:
+                            home = os.path.expanduser("~")
+                            regP = filedialog.askdirectory(parent=root,
+                                                           initialdir=home,
+                                                           title='Select the regions folder')
+                        root.destroy()
+                    else:
+                        templP = input("The folder containing the brain regions was not found.\nType (or paste) the path to the folder:\n")
+                        
+                    if os.path.exists(regP):
+                        priors_paths['regions'] = regP
+                        print(f'Selected folder for region masks : {regP}')
+                    else:
+                        raise Exception("Using NifTI priors, but no brain regions were provided. Stopping the program.")
+                        
+                if not (priors_paths['region_pmap'] and os.path.exists(priors_paths['region_pmap'])):
+                    # missing folder containing the proba maps of each brain region
+                    newJson = True
+                    pmapsP = ''
+                    if from_GUI:
+                        root = tk.Tk()
+                        root.withdraw()
+                        canc = tk.messagebox.askokcancel("Brain regions probability maps not found",
+                                                         "The folder containing the brain regions "
+                                                         "probability maps was not found.\n"
+                                                         "Select the folder?\n"
+                                                         "/!\\ Don't forget to open (i.e. double-click on) the last selected folder")
+                        pmapsP = ''
+                        if canc:
+                            home = os.path.expanduser("~")
+                            pmapsP = filedialog.askdirectory(parent=root,
+                                                             initialdir=home,
+                                                             title='Select the regions probability maps folder')
+                        root.destroy()
+                    else:
+                        pmapsP = input("The folder containing the brain regions probability maps "
+                                       "was not found.\nType (or paste) the path to the folder:\n")
+                        
+                    if os.path.exists(pmapsP):
+                        priors_paths['region_pmap'] = pmapsP
+                        print(f'Selected folder for region proba maps : {regP}')
+                    else:
+                        raise Exception("Using NifTI priors, but no brain regions "
+                                        "probability maps were provided. Stopping the program.")
+                    
+            if anatype=='voxel':
+                if not (priors_paths['voxel_pmap'] and os.path.exists(priors_paths['voxel_pmap'])):
+                    # missing folder containing the proba maps of each brain voxels
+                    newJson = True
+                    pmapsP = ''
+                    if from_GUI:
+                        root = tk.Tk()
+                        root.withdraw()
+                        canc = tk.messagebox.askokcancel('Brain voxels probability maps not found',
+                                                         'The folder containing the brain voxels '
+                                                         'probability maps was not found. Select the folder?')
+                        pmapsP = ''
+                        if canc:
+                            home = os.path.expanduser("~")
+                            pmapsP = filedialog.askdirectory(parent=root,
+                                                             initialdir=home,
+                                                             title='Select the voxels probability maps folder')
+                        root.destroy()
+                    else:
+                        pmapsP = input("The folder containing the brain voxels probability maps "
+                                       "was not found.\nType (or paste) the path to the folder:\n")
+                        
+                    if os.path.exists(pmapsP):
+                        priors_paths['voxel_pmap'] = pmapsP
+                    else:
+                        raise Exception("Using NifTI priors with voxelwise analysis,"
+                                        " but no folder containing the probability maps was provided")
+        if newJson:
+            with open(priorPath, 'w') as pP:
+                json.dump(priors_paths, pP)
+                
+    #%% Association of the priors path with their variables
     if prior_type=='nii':
         if settings[-1]=='###':
             if not (opt_template_path and (opt_pmap_vox_loc or (opt_pmap_region_loc and opt_regions_loc))):
@@ -467,7 +713,7 @@ def run_functionnectome(settingFilePath):
         while os.path.exists(fpath):
             fpath = os.path.join(results_dir_root,f'settings{n}.fcntm')
             n+=1
-        copyfile(settingFilePath,fpath) # Save the settings into the result directory
+        shutil.copyfile(settingFilePath,fpath) # Save the settings into the result directory
     
     # Get the basic info about the input (shape, file header, list of regions, ...) 
     if prior_type=='nii':
@@ -565,9 +811,11 @@ def run_functionnectome(settingFilePath):
                     while not out_batch_sum.ready():
                         percent = LogDiplayPercent(results_dir,percent)
                         time.sleep(1)
-                    sys.stdout.write("\rProgress of the current process: 100%    \n")
+                    sys.stdout.write("\rProgress of the current process: 100%  Completed           \n")
                     sys.stdout.flush()
                     out_batch_sum = out_batch_sum.get()
+                    if any([a is None for a in out_batch_sum]): # There was a problem in a process
+                        raise Exception("One of the process did not yield a good result. Check the logs.")
                     logfiles = glob.glob(os.path.join(results_dir,'log_*.txt'))
                     for logf in logfiles:
                         os.remove(logf)
@@ -661,7 +909,7 @@ def run_functionnectome(settingFilePath):
                 while not poolCheck.ready():
                     percent = LogDiplayPercent(results_dir,percent)
                     time.sleep(1)
-                sys.stdout.write("\rProgress of the current process: 100%    \n")
+                sys.stdout.write("\rProgress of the current process: 100%  Completed           \n")
                 sys.stdout.flush()
                 logfiles = glob.glob(os.path.join(results_dir,'log_*.txt'))
                 for logf in logfiles:
@@ -730,7 +978,7 @@ def run_functionnectome(settingFilePath):
                     while not out_batch_sum.ready():
                         percent = LogDiplayPercent(results_dir,percent)
                         time.sleep(1)
-                    sys.stdout.write("\rProgress of the current process: 100%    \n")
+                    sys.stdout.write("\rProgress of the current process: 100%  Completed           \n")
                     sys.stdout.flush()
                     out_batch_sum=out_batch_sum.get()
                     logfiles = glob.glob(os.path.join(results_dir,'log_*.txt'))
@@ -807,7 +1055,7 @@ def run_functionnectome(settingFilePath):
                 while not poolCheck.ready():
                     percent = LogDiplayPercent(results_dir,percent)
                     time.sleep(1)
-                sys.stdout.write("\rProgress of the current process: 100%    \n")
+                sys.stdout.write("\rProgress of the current process: 100%  Completed           \n")
                 sys.stdout.flush()
                 logfiles = glob.glob(os.path.join(results_dir,'log_*.txt'))
                 for logf in logfiles:

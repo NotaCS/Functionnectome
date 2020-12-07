@@ -360,7 +360,7 @@ def Regionwise_functionnectome(batch_num):
             if not ii % 10:  # Write a line in the log every 10 region
                 ctime = time.time()-startTime
                 logtxt = (f'Region {ii} in {len(list(current_split_in))} : '
-                          '{int(ctime//60)} min and {int(ctime%60)} sec\n')
+                          f'{int(ctime//60)} min and {int(ctime%60)} sec\n')
                 with open(logFile, "a") as log:
                     log.write(logtxt)
             # Load proba map of the current region and divide it by the sum of all proba map
@@ -374,7 +374,7 @@ def Regionwise_functionnectome(batch_num):
                 if not ii % 10:  # Write a line in the log every 10 region
                     ctime = time.time()-startTime
                     logtxt = (f'Region {ii} in {len(list(current_split_in))} : '
-                              '{int(ctime//60)} min and {int(ctime%60)} sec\n')
+                              f'{int(ctime//60)} min and {int(ctime%60)} sec\n')
                     with open(logFile, "a") as log:
                         log.write(logtxt)
                 region_map = h5fout['tract_region'][reg][:]

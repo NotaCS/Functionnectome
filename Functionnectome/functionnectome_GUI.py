@@ -19,7 +19,7 @@ import sys
 import warnings
 from tkinter import filedialog
 from pathlib import Path
-import Functionnectome.Functionnectome as fun
+import Functionnectome.functionnectome as fun
 
 
 class Functionnectome_GUI(tk.Tk):
@@ -607,9 +607,14 @@ class Functionnectome_GUI(tk.Tk):
 
 
 # %%
-if sys.version_info[0] < 3:
-    raise Exception("Must be using Python 3. And probably Python 3.6 (or superior).")
-if sys.version_info[1] < 6:
-    warnings.warn("Python version < 3.6 |nIt might not work. Consider updating.")
-functionnectome_GUI = Functionnectome_GUI()
-functionnectome_GUI.mainloop()
+def run_gui():
+    if sys.version_info[0] < 3:
+        raise Exception("Must be using Python 3. And probably Python 3.6 (or superior).")
+    if sys.version_info[1] < 6:
+        warnings.warn("Python version < 3.6 |nIt might not work. Consider updating.")
+    functionnectome_GUI = Functionnectome_GUI()
+    functionnectome_GUI.mainloop()
+
+
+if __name__ == '__main__':
+    run_gui()

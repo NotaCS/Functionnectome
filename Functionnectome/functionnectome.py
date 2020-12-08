@@ -1116,10 +1116,14 @@ def run_functionnectome(settingFilePath, from_GUI=False):
 
 
 # %% Run the code if the script is called directly, the path to the setting file must be given as argument
-if __name__ == '__main__':
+def main():
     if sys.version_info[0] < 3:
         raise Exception("Must be using Python 3. And probably Python 3.6 (or superior).")
     if sys.version_info[1] < 6:
         warnings.warn("Python version < 3.6 |nIt might not work. Consider updating.")
     settingFilePath = sys.argv[1]
     run_functionnectome(settingFilePath)
+
+
+if __name__ == '__main__':
+    main()

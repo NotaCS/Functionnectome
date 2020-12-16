@@ -25,9 +25,14 @@ setuptools.setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNUv3 License",
         "Operating System :: OS Independent",
-    ],
+                ],
     python_requires='>=3.6',
     entry_points={'console_scripts': ['FunctionnectomeGUI=Functionnectome.functionnectome_GUI:run_gui',
                                       'Functionnectome=Functionnectome.functionnectome:main'],
-                  }
+                  },
+    install_requires=['numpy',
+                      'nibabel',
+                      'pandas',
+                      'h5py'
+                      ]
 )

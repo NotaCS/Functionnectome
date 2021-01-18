@@ -19,7 +19,12 @@ import sys
 import warnings
 from tkinter import filedialog
 from pathlib import Path
-import Functionnectome.functionnectome as fun
+try:
+    import Functionnectome.functionnectome as fun
+except ModuleNotFoundError:
+    print('The Functionnectome module was not found (probably not installed via pip).'
+          ' Importing functions from the folder where the current script was saved...')
+    import functionnectome as fun
 
 
 class Functionnectome_GUI(tk.Tk):

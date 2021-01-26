@@ -26,6 +26,7 @@ import zipfile
 import threading
 from urllib.request import urlopen
 import tkinter as tk
+from tkinter import messagebox
 from tkinter import filedialog
 import h5py
 import numpy as np
@@ -583,7 +584,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                 if from_GUI:
                     root = tk.Tk()
                     root.withdraw()
-                    canc = tk.messagebox.askokcancel('No template found', 'No brain template found. Select the file?')
+                    canc = messagebox.askokcancel('No template found', 'No brain template found. Select the file?')
                     templP = ''
                     if canc:
                         home = os.path.expanduser("~")
@@ -608,7 +609,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     if from_GUI:
                         root = tk.Tk()
                         root.withdraw()
-                        canc = tk.messagebox.askokcancel("Brain regions masks not found",
+                        canc = messagebox.askokcancel("Brain regions masks not found",
                                                          "The folder containing the brain regions was not found.\n"
                                                          "Select the folder?\n"
                                                          "/!\\ Don't forget to open i.e. double-click on) "
@@ -637,7 +638,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     if from_GUI:
                         root = tk.Tk()
                         root.withdraw()
-                        canc = tk.messagebox.askokcancel("Brain regions probability maps not found",
+                        canc = messagebox.askokcancel("Brain regions probability maps not found",
                                                          "The folder containing the brain regions "
                                                          "probability maps was not found.\n"
                                                          "Select the folder?\n"
@@ -669,7 +670,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     if from_GUI:
                         root = tk.Tk()
                         root.withdraw()
-                        canc = tk.messagebox.askokcancel('Brain voxels probability maps not found',
+                        canc = messagebox.askokcancel('Brain voxels probability maps not found',
                                                          'The folder containing the brain voxels '
                                                          'probability maps was not found. Select the folder?')
                         pmapsP = ''
@@ -987,7 +988,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             split_ind = np.array_split(ind_mask2, nb_of_batchs)
 
             # Summing all the proba maps, for later "normalization"
-            if len(masks_vox) == 1:
+            if mask_nb == 1 and subNb > 1:
                 firstSubRes = os.path.join(results_dir_root, anatype + 'wise_analysis', IDs[0])
                 sumpath = os.path.join(firstSubRes, 'sum_probaMaps_voxel.nii.gz')
             else:

@@ -18,6 +18,7 @@ import os
 import sys
 import warnings
 from tkinter import filedialog
+from tkinter import messagebox
 from pathlib import Path
 try:
     import Functionnectome.functionnectome as fun
@@ -190,7 +191,7 @@ class Functionnectome_GUI(tk.Tk):
                 msg.pack()
                 filesInMsg.set('\n'.join(preMsg))
             else:
-                tk.messagebox.showinfo("Selected masks", "No file selected yet.", parent=top_mask)
+                messagebox.showinfo("Selected masks", "No file selected yet.", parent=top_mask)
 
         def ok_maskBtn():
             if (nbmask.get() == 'common' and self.nbMasks.get() == 1
@@ -200,17 +201,17 @@ class Functionnectome_GUI(tk.Tk):
                 top_mask.destroy()
                 top_mask.update()
             elif nbmask.get() == 'common' and self.nbMasks.get() > 1:
-                tk.messagebox.showwarning('Bad number of masks',
+                messagebox.showwarning('Bad number of masks',
                                           ('There are multiple masks selected (check the "View files" button), '
                                            'but the "Same mask for all" option is selected.'),
                                           parent=top_mask)
             elif nbmask.get() == 'subjectwise' and self.nbMasks.get() != self.nbFiles.get():
-                tk.messagebox.showwarning('Bad number of masks',
+                messagebox.showwarning('Bad number of masks',
                                           (f"The number of selected masks ({self.nbMasks.get()}) "
                                            f"doesn't match the number of selected BOLD files ({self.nbFiles.get()})"),
                                           parent=top_mask)
             elif self.nbMasks.get() == 0:
-                continue_answ = tk.messagebox.askokcancel(title='No mask selected',
+                continue_answ = messagebox.askokcancel(title='No mask selected',
                                                           message='No mask selected. Continue?',
                                                           parent=top_mask)
                 if continue_answ:
@@ -309,7 +310,7 @@ class Functionnectome_GUI(tk.Tk):
             msg.pack()
             filesInMsg.set('\n'.join(preMsg))
         else:
-            tk.messagebox.showinfo("Selected files", "No file selected yet.")
+            messagebox.showinfo("Selected files", "No file selected yet.")
 
     def get_outDir(self):
         outDir_tmp = filedialog.askdirectory(initialdir=self.home,
@@ -381,7 +382,7 @@ class Functionnectome_GUI(tk.Tk):
             check_goodNii = [(p.endswith(('.nii', '.nii.gz')) and os.path.exists(p)) for p in prePath2]
 
             if not all(check_goodNii):  # if at leat one extension is bad
-                tk.messagebox.showwarning("Bad files", ("Some paths entered do not exist or do not have the proper "
+                messagebox.showwarning("Bad files", ("Some paths entered do not exist or do not have the proper "
                                                         "extension (.nii or .nii.gz)'."), parent=pasteWin)
                 txtPaths.delete('1.0', tk.END)
                 for ii, (fpath, cpath) in enumerate(zip(prePath2, check_goodNii)):
@@ -403,7 +404,7 @@ class Functionnectome_GUI(tk.Tk):
                        '(i.e. each path do not have the same number of sub-directories).\n'
                        'This might hinder (or even break) the naming of the output folders and files.'
                        )
-                continue_answ = tk.messagebox.askokcancel(title='Uneven path length', message=msg, parent=pasteWin)
+                continue_answ = messagebox.askokcancel(title='Uneven path length', message=msg, parent=pasteWin)
 
             if continue_answ:  # if everything is good, the window closes and the data is retreived
                 setattr(self, paths_varname, prePath2)
@@ -437,13 +438,13 @@ class Functionnectome_GUI(tk.Tk):
     # %%
     def saveSettings(self):
         if not self.outDir.get():
-            tk.messagebox.showwarning(title="No output folder",
+            messagebox.showwarning(title="No output folder",
                                       message=("No output folder selected for the analysis.\n"
                                                "Complete the field and retry."),
                                       parent=self)
             return 0
         if not self.bold_paths:
-            tk.messagebox.showwarning(title="No BOLD file selected",
+            messagebox.showwarning(title="No BOLD file selected",
                                       message="No BOLD file selected.\nSelect at least one file and retry.",
                                       parent=self)
             return 0
@@ -451,11 +452,11 @@ class Functionnectome_GUI(tk.Tk):
             msg = ("No mask has been selected for the voxelwise analysis.\n" +
                    "Default behavior is to process all the brain's voxels.\n" +
                    "That's a whole lot of voxels... Are you sure you want to continue?")
-            continue_answ = tk.messagebox.askokcancel(title='No mask selected', message=msg, parent=self)
+            continue_answ = messagebox.askokcancel(title='No mask selected', message=msg, parent=self)
             if not continue_answ:
                 return 0
         if self.ana_type.get() == 'voxel' and self.nbMasks.get() > 1 and self.nbMasks.get() != self.nbFiles.get():
-            tk.messagebox.showwarning('Bad number of masks',
+            messagebox.showwarning('Bad number of masks',
                                       ('There are multiple masks selected, '
                                        f"but, the number of selected masks ({self.nbMasks.get()}) "
                                        f"doesn't match the number of selected BOLD files ({self.nbFiles.get()})."),
@@ -466,7 +467,7 @@ class Functionnectome_GUI(tk.Tk):
         firstSep = 1 if (self.bold_paths[0][0] == os.path.sep and int(posID) > 0) else 0
         listID = [os.path.normpath(boldpath).split(os.path.sep)[int(posID)+firstSep] for boldpath in self.bold_paths]
         if len(set(listID)) < len(listID):  # If the subjects' ID are not all unique
-            tk.messagebox.showwarning('Non-unique subject ID',
+            messagebox.showwarning('Non-unique subject ID',
                                       ("There are multiple identical subject IDs, "
                                        "defined through the files' paths: The position "
                                        "of the subject ID in the path is probably wrong."),
@@ -535,7 +536,7 @@ class Functionnectome_GUI(tk.Tk):
                    settings[16+int(settings[13])+2] == "Masks for voxelwise analysis:"
                    ]
         if not all(orgTest):
-            tk.messagebox.showwarning('Bad file',
+            messagebox.showwarning('Bad file',
                                       'The file is not properly organised.',
                                       parent=self)
             return
@@ -546,7 +547,7 @@ class Functionnectome_GUI(tk.Tk):
             if settings[3] in ('region', 'voxel'):
                 self.ana_type.set(settings[3])
             else:
-                tk.messagebox.showwarning('Bad value',
+                messagebox.showwarning('Bad value',
                                           f"Bad analysis type, should be 'region' or 'voxel', but is '{settings[3]}'",
                                           parent=self)
                 return
@@ -554,14 +555,14 @@ class Functionnectome_GUI(tk.Tk):
             try:
                 int(settings[5])
             except:
-                tk.messagebox.showwarning('Bad value', 'The number of processes should be an integer', parent=self)
+                messagebox.showwarning('Bad value', 'The number of processes should be an integer', parent=self)
                 return
             self.nb_parallel_proc.set(settings[5])
 
             if settings[7] in ('h5', 'nii'):
                 self.priors.set(settings[7])
             else:
-                tk.messagebox.showwarning('Bad value',
+                messagebox.showwarning('Bad value',
                                           f"Bad prior type, should be 'h5' or 'nii', but is '{settings[7]}'",
                                           parent=self)
                 return
@@ -569,7 +570,7 @@ class Functionnectome_GUI(tk.Tk):
             try:
                 int(settings[9])
             except: 
-                tk.messagebox.showwarning('Bad value',
+                messagebox.showwarning('Bad value',
                                           "The posistion of the subject's ID should be an integer",
                                           parent=self)
                 return
@@ -599,14 +600,14 @@ class Functionnectome_GUI(tk.Tk):
                 sett_tail = "".join(settings[19 + int(settings[13]) + int(settings[15]):])  # convert to 1 long string
                 sett_tail = "".join(sett_tail.split())  # remove all whitespaces
                 if sett_tail:  # Check if there is anything left
-                    tk.messagebox.showwarning('More data than expected in the file',
+                    messagebox.showwarning('More data than expected in the file',
                                               ('There are non-empty lines trailing after the last considered line '
                                                'in the settings file.\n'
                                                'Check if the number of files announced is the same as the actual '
                                                'number of paths written in the file.'),
                                               parent=self)
         except:
-            tk.messagebox.showwarning('Bad file',
+            messagebox.showwarning('Bad file',
                                       'There is a problem with the setting file. Check if its syntax is correct.',
                                       parent=self)
 

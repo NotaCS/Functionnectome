@@ -40,6 +40,3 @@ A quick guide and a comprehensive guide with step by step are documented in the 
 # Using the scripts directly
 The main program, **functionnectome.py**, runs the computation. It requires one argument: the path to a text file (with the ".fcntm" extension) containing the properly formated input parameters.
 The *.fcntm* file can be easily created using the GUI accompanying the package: **functionnectome_GUI.py**
-
-Additionally, a *makeHDF5prior.py* script is also provided. It can be used to generate an HDF5 file with your custom priors.
-(No script for the creation of such custom priors is available yet, but should be in the future)

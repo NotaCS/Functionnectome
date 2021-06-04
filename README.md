@@ -31,7 +31,7 @@ It is also possible to manually download the scripts from the GitHub and run the
 More details are available in the manual.
 
 # Run time
-The run time may vary lot depending on many different factors (from hardware to input data).
+The run time may vary a lot depending on many different factors (from hardware to input data).
 As a rule of thumb, the region-wise analysis can run on a dataset in under 10 min on a typical desktop computer. conversely the voxel-wise analysis is not meant for such hardware (it would take more than a day for one dataset), and usually requires a computational grid (or a computer with many cores). More details are available in the manunal's FAQ.
 
 # Using the package

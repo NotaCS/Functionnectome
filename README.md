@@ -32,7 +32,7 @@ More details are available in the manual.
 
 # Run time
 The run time may vary a lot depending on many different factors (from hardware to input data).
-As a rule of thumb, the region-wise analysis can run on a dataset in under 10 min on a typical desktop computer. conversely the voxel-wise analysis is not meant for such hardware (it would take more than a day for one dataset), and usually requires a computational grid (or a computer with many cores). More details are available in the manunal's FAQ.
+As a rule of thumb, the region-wise analysis can run on a dataset in under 10 min on a typical desktop computer. Conversely the voxel-wise analysis is not meant for such hardware (it would take more than a day for one dataset), and usually requires a computational grid (or a computer with many cores). More details are available in the manunal's FAQ.
 
 # Using the package
 A quick guide and a comprehensive guide with step by step are documented in the manual.

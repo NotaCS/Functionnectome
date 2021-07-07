@@ -166,7 +166,7 @@ class Functionnectome_GUI(tk.Tk):
             masks_path_tmp = filedialog.askopenfilenames(parent=top_mask,
                                                          initialdir=self.home,
                                                          title='Choose the masks files',
-                                                         filetypes=[("Nifti files", ".nii .nii.gz")])
+                                                         filetypes=[("Nifti files", ".nii .gz")])
             if masks_path_tmp:
                 self.mask_paths_tmp = list(masks_path_tmp)
                 self.mask_paths_tmp.sort()
@@ -176,7 +176,7 @@ class Functionnectome_GUI(tk.Tk):
             mask_file_tmp = filedialog.askopenfilename(parent=top_mask,
                                                        initialdir=self.home,
                                                        title='Choose the mask file',
-                                                       filetypes=[("Nifti files", ".nii .nii.gz")])
+                                                       filetypes=[("Nifti files", ".nii .gz")])
             if mask_file_tmp:
                 self.mask_paths_tmp = [mask_file_tmp]
                 self.nbMasks.set(1)
@@ -288,7 +288,7 @@ class Functionnectome_GUI(tk.Tk):
         bold_paths_tmp = filedialog.askopenfilenames(parent=self.fBOLD,
                                                      initialdir=self.home,
                                                      title='Choose the BOLD files',
-                                                     filetypes=[("Nifti files", ".nii .nii.gz")])
+                                                     filetypes=[("Nifti files", ".nii .gz")])
         if bold_paths_tmp:  # to manage empty answers and "Cancel" use
             self.bold_paths = list(bold_paths_tmp)
             self.bold_paths.sort()

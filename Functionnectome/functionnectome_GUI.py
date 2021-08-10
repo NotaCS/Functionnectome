@@ -202,18 +202,18 @@ class Functionnectome_GUI(tk.Tk):
                 top_mask.update()
             elif nbmask.get() == 'common' and self.nbMasks.get() > 1:
                 messagebox.showwarning('Bad number of masks',
-                                          ('There are multiple masks selected (check the "View files" button), '
-                                           'but the "Same mask for all" option is selected.'),
-                                          parent=top_mask)
+                                       ('There are multiple masks selected (check the "View files" button), '
+                                        'but the "Same mask for all" option is selected.'),
+                                       parent=top_mask)
             elif nbmask.get() == 'subjectwise' and self.nbMasks.get() != self.nbFiles.get():
                 messagebox.showwarning('Bad number of masks',
-                                          (f"The number of selected masks ({self.nbMasks.get()}) "
-                                           f"doesn't match the number of selected BOLD files ({self.nbFiles.get()})"),
-                                          parent=top_mask)
+                                       (f"The number of selected masks ({self.nbMasks.get()}) "
+                                        f"doesn't match the number of selected BOLD files ({self.nbFiles.get()})"),
+                                       parent=top_mask)
             elif self.nbMasks.get() == 0:
                 continue_answ = messagebox.askokcancel(title='No mask selected',
-                                                          message='No mask selected. Continue?',
-                                                          parent=top_mask)
+                                                       message='No mask selected. Continue?',
+                                                       parent=top_mask)
                 if continue_answ:
                     self.mask_paths = self.mask_paths_tmp
                     top_mask.destroy()
@@ -313,7 +313,10 @@ class Functionnectome_GUI(tk.Tk):
             messagebox.showinfo("Selected files", "No file selected yet.")
 
     def get_outDir(self):
-        outDir_tmp = filedialog.askdirectory(initialdir=self.home,
+        odir = self.outDir.get()
+        if not odir:
+            odir = self.home
+        outDir_tmp = filedialog.askdirectory(initialdir=odir,
                                              parent=self.fOut,
                                              title='Choose or create the output folder')
         if outDir_tmp:  # to manage empty answers and "Cancel" use
@@ -383,7 +386,7 @@ class Functionnectome_GUI(tk.Tk):
 
             if not all(check_goodNii):  # if at leat one extension is bad
                 messagebox.showwarning("Bad files", ("Some paths entered do not exist or do not have the proper "
-                                                        "extension (.nii or .nii.gz)'."), parent=pasteWin)
+                                                     "extension (.nii or .nii.gz)'."), parent=pasteWin)
                 txtPaths.delete('1.0', tk.END)
                 for ii, (fpath, cpath) in enumerate(zip(prePath2, check_goodNii)):
                     if cpath:
@@ -439,14 +442,14 @@ class Functionnectome_GUI(tk.Tk):
     def saveSettings(self):
         if not self.outDir.get():
             messagebox.showwarning(title="No output folder",
-                                      message=("No output folder selected for the analysis.\n"
-                                               "Complete the field and retry."),
-                                      parent=self)
+                                   message=("No output folder selected for the analysis.\n"
+                                            "Complete the field and retry."),
+                                   parent=self)
             return 0
         if not self.bold_paths:
             messagebox.showwarning(title="No BOLD file selected",
-                                      message="No BOLD file selected.\nSelect at least one file and retry.",
-                                      parent=self)
+                                   message="No BOLD file selected.\nSelect at least one file and retry.",
+                                   parent=self)
             return 0
         if self.ana_type.get() == 'voxel' and not self.mask_paths:
             msg = ("No mask has been selected for the voxelwise analysis.\n" +
@@ -457,10 +460,10 @@ class Functionnectome_GUI(tk.Tk):
                 return 0
         if self.ana_type.get() == 'voxel' and self.nbMasks.get() > 1 and self.nbMasks.get() != self.nbFiles.get():
             messagebox.showwarning('Bad number of masks',
-                                      ('There are multiple masks selected, '
-                                       f"but, the number of selected masks ({self.nbMasks.get()}) "
-                                       f"doesn't match the number of selected BOLD files ({self.nbFiles.get()})."),
-                                      parent=self)
+                                   ('There are multiple masks selected, '
+                                    f"but, the number of selected masks ({self.nbMasks.get()}) "
+                                    f"doesn't match the number of selected BOLD files ({self.nbFiles.get()})."),
+                                   parent=self)
             return 0
 
         posID = (self.subInPath.get() if self.exPath else '-1')
@@ -468,10 +471,10 @@ class Functionnectome_GUI(tk.Tk):
         listID = [os.path.normpath(boldpath).split(os.path.sep)[int(posID)+firstSep] for boldpath in self.bold_paths]
         if len(set(listID)) < len(listID):  # If the subjects' ID are not all unique
             messagebox.showwarning('Non-unique subject ID',
-                                      ("There are multiple identical subject IDs, "
-                                       "defined through the files' paths: The position "
-                                       "of the subject ID in the path is probably wrong."),
-                                      parent=self)
+                                   ("There are multiple identical subject IDs, "
+                                    "defined through the files' paths: The position "
+                                    "of the subject ID in the path is probably wrong."),
+                                   parent=self)
             return 0
         settingsTxt = ("Output folder:\n"
                        "\t" + self.outDir.get() + "\n"
@@ -537,8 +540,8 @@ class Functionnectome_GUI(tk.Tk):
                    ]
         if not all(orgTest):
             messagebox.showwarning('Bad file',
-                                      'The file is not properly organised.',
-                                      parent=self)
+                                   'The file is not properly organised.',
+                                   parent=self)
             return
 
         try:
@@ -548,8 +551,8 @@ class Functionnectome_GUI(tk.Tk):
                 self.ana_type.set(settings[3])
             else:
                 messagebox.showwarning('Bad value',
-                                          f"Bad analysis type, should be 'region' or 'voxel', but is '{settings[3]}'",
-                                          parent=self)
+                                       f"Bad analysis type, should be 'region' or 'voxel', but is '{settings[3]}'",
+                                       parent=self)
                 return
 
             try:
@@ -563,16 +566,16 @@ class Functionnectome_GUI(tk.Tk):
                 self.priors.set(settings[7])
             else:
                 messagebox.showwarning('Bad value',
-                                          f"Bad prior type, should be 'h5' or 'nii', but is '{settings[7]}'",
-                                          parent=self)
+                                       f"Bad prior type, should be 'h5' or 'nii', but is '{settings[7]}'",
+                                       parent=self)
                 return
 
             try:
                 int(settings[9])
             except: 
                 messagebox.showwarning('Bad value',
-                                          "The posistion of the subject's ID should be an integer",
-                                          parent=self)
+                                       "The posistion of the subject's ID should be an integer",
+                                       parent=self)
                 return
 
             self.bold_paths = []
@@ -598,18 +601,21 @@ class Functionnectome_GUI(tk.Tk):
 
             if len(settings) > 19 + int(settings[13]) + int(settings[15]):
                 sett_tail = "".join(settings[19 + int(settings[13]) + int(settings[15]):])  # convert to 1 long string
+                if "###" in sett_tail:
+                    indStop = sett_tail.find("###")
+                    sett_tail = sett_tail[:indStop]
                 sett_tail = "".join(sett_tail.split())  # remove all whitespaces
                 if sett_tail:  # Check if there is anything left
                     messagebox.showwarning('More data than expected in the file',
-                                              ('There are non-empty lines trailing after the last considered line '
-                                               'in the settings file.\n'
-                                               'Check if the number of files announced is the same as the actual '
-                                               'number of paths written in the file.'),
-                                              parent=self)
+                                           ('There are non-empty lines trailing after the last considered line '
+                                            'in the settings file.\n'
+                                            'Check if the number of files announced is the same as the actual '
+                                            'number of paths written in the file.'),
+                                           parent=self)
         except:
             messagebox.showwarning('Bad file',
-                                      'There is a problem with the setting file. Check if its syntax is correct.',
-                                      parent=self)
+                                   'There is a problem with the setting file. Check if its syntax is correct.',
+                                   parent=self)
 
 
 # %%

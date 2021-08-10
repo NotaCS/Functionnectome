@@ -230,7 +230,7 @@ def Sum_regionwise_pmaps(regions_batch):
                 sum_pmap = np.zeros(dict_var['templateShape'], dtype=region_pmap_img.get_data_dtype())
             try:
                 sum_pmap += region_pmap_img.get_fdata(dtype=region_pmap_img.get_data_dtype())
-            except:
+            except ValueError:
                 sum_pmap += region_pmap_img.get_fdata().astype(region_pmap_img.get_data_dtype())
     elif dict_var['prior_type'] == 'h5':
         with h5py.File(dict_var['pmapStore'], "r") as h5fout:
@@ -279,7 +279,10 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
                 return None
             if ii == 0:
                 sum_pmap = np.zeros(dict_var['templateShape'], dtype=vox_pmap_img.get_data_dtype())
-            sum_pmap += vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
+            try:
+                sum_pmap += vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
+            except ValueError:
+                sum_pmap += vox_pmap_img.get_fdata().astype(vox_pmap_img.get_data_dtype())
     elif dict_var['prior_type'] == 'h5':
         with h5py.File(dict_var['pmapStore'], "r") as h5fout:
             for ii, indvox in enumerate(ind_voxels_batch):
@@ -366,7 +369,10 @@ def Regionwise_functionnectome(batch_num):
                     log.write(logtxt)
             # Load proba map of the current region and divide it by the sum of all proba map
             region_map_img = nib.load(os.path.join(dict_var['pmapStore'], f'{reg}.nii.gz'))
-            region_map = region_map_img.get_fdata(dtype=region_map_img.get_data_dtype())
+            try:
+                region_map = region_map_img.get_fdata(dtype=region_map_img.get_data_dtype())
+            except ValueError:
+                region_map = region_map_img.get_fdata().astype(region_map_img.get_data_dtype())
             current_shape = (len(current_split_in[reg]), 1, 1, 1)
             current_split_out += np.expand_dims(region_map, 0) * current_split_in[reg].values.reshape(current_shape)
     elif dict_var['prior_type'] == 'h5':
@@ -451,7 +457,10 @@ def Voxelwise_functionnectome(batch_num):
             # and add it to the results
             vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'],
                                                  f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'))
-            vox_pmap = vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
+            try:
+                vox_pmap = vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
+            except ValueError:
+                vox_pmap = vox_pmap_img.get_fdata().astype(vox_pmap_img.get_data_dtype())
             batch_4D_out += np.expand_dims(vox_pmap, 0)*batch_bold[ii].reshape((nbTRbatch, 1, 1, 1))
 
     elif dict_var['prior_type'] == 'h5':
@@ -520,17 +529,20 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                 masks_vox.append(settings[imask])
 
         # Optional variables at the end of the file, to change the priors paths written here
-        while not settings[-1]:  # removing empty lines at the end of the file
-            settings.pop()
-        if settings[-1] == '###':  # "###" marks the presence of the optional settings
-            opt_h5_loc = settings[-10]
-            opt_template_path = settings[-8]
-            opt_pmap_vox_loc = settings[-6]
-            opt_pmap_region_loc = settings[-4]
-            opt_regions_loc = settings[-2]
+        if any('###' in s for s in settings):  # "###" marks the presence of the optional settings
+            indOpt = next((i, s) for i, s in enumerate(settings) if '###' in s)[0]  # index of "###" first occurence
+            optSett = True
+        else:
+            optSett = False
+        if optSett:
+            opt_h5_loc = settings[indOpt + 2]
+            opt_template_path = settings[indOpt + 4]
+            opt_pmap_vox_loc = settings[indOpt + 6]
+            opt_pmap_region_loc = settings[indOpt + 8]
+            opt_regions_loc = settings[indOpt + 10]
 
     # %% Checking for the existence of priors and asking what to do if none found
-    if not settings[-1] == '###':  # If non default priors are used, override this
+    if not optSett:  # If non default priors are used, override this
         pkgPath = os.path.dirname(__file__)
         priorPath = os.path.join(pkgPath, 'priors_paths.json')
         if os.path.exists(priorPath):
@@ -610,10 +622,10 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                         root = tk.Tk()
                         root.withdraw()
                         canc = messagebox.askokcancel("Brain regions masks not found",
-                                                         "The folder containing the brain regions was not found.\n"
-                                                         "Select the folder?\n"
-                                                         "/!\\ Don't forget to open i.e. double-click on) "
-                                                         "the last selected folder")
+                                                      "The folder containing the brain regions was not found.\n"
+                                                      "Select the folder?\n"
+                                                      "/!\\ Don't forget to open i.e. double-click on) "
+                                                      "the last selected folder")
                         regP = ''
                         if canc:
                             home = os.path.expanduser("~")
@@ -639,11 +651,11 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                         root = tk.Tk()
                         root.withdraw()
                         canc = messagebox.askokcancel("Brain regions probability maps not found",
-                                                         "The folder containing the brain regions "
-                                                         "probability maps was not found.\n"
-                                                         "Select the folder?\n"
-                                                         "/!\\ Don't forget to open (i.e. double-click on) "
-                                                         "the last selected folder")
+                                                      "The folder containing the brain regions "
+                                                      "probability maps was not found.\n"
+                                                      "Select the folder?\n"
+                                                      "/!\\ Don't forget to open (i.e. double-click on) "
+                                                      "the last selected folder")
                         pmapsP = ''
                         if canc:
                             home = os.path.expanduser("~")
@@ -671,8 +683,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                         root = tk.Tk()
                         root.withdraw()
                         canc = messagebox.askokcancel('Brain voxels probability maps not found',
-                                                         'The folder containing the brain voxels '
-                                                         'probability maps was not found. Select the folder?')
+                                                      'The folder containing the brain voxels '
+                                                      'probability maps was not found. Select the folder?')
                         pmapsP = ''
                         if canc:
                             home = os.path.expanduser("~")
@@ -695,7 +707,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
 
     # %% Association of the priors path with their variables
     if prior_type == 'nii':
-        if settings[-1] == '###':
+        if optSett:
             if not (opt_template_path and (opt_pmap_vox_loc or (opt_pmap_region_loc and opt_regions_loc))):
                 raise Exception("Using optional settings, but some are not filled.")
             template_path = opt_template_path
@@ -716,7 +728,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             else:
                 raise Exception('Bad type of analysis (not "voxel" nor "region")')
     elif prior_type == 'h5':
-        if settings[-1] == '###':
+        if optSett:
             # Two cases: a path to an external HDF5 file, or a path to a .nii template (i.e we use the default .h5 for
             # everything but the template)
             if not any((opt_h5_loc, opt_template_path)):
@@ -863,16 +875,45 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                                    'and relaunch the analysis.')
                 print(alreadyThereMsg)
                 sum_pmap_img = nib.load(sumpath)
-                sum_pmap_all = sum_pmap_img.get_fdata(dtype=sum_pmap_img.get_data_dtype())
+                try:
+                    sum_pmap_all = sum_pmap_img.get_fdata(dtype=sum_pmap_img.get_data_dtype())
+                except ValueError:
+                    sum_pmap_all = sum_pmap_img.get_fdata().astype(sum_pmap_img.get_data_dtype())
 
             # Loading the 4D BOLD file
             print('Loading 4D data...')
             bold_img = nib.load(boldf)
             bold_dtype = bold_img.get_data_dtype().name
-            bold_vol = bold_img.get_fdata(dtype=bold_dtype)
             bold_header = bold_img.header
             bold_affine = bold_img.affine
             bold_shape = bold_img.shape
+            # Checking if the data has proper dimension and orientation
+            if bold_img.ndim == 3:
+                raise ValueError('The input NIfTI volume is 3D. The Functionnectome only accepts 4D volumes.')
+            flipLR = False
+            if not (bold_affine == affine3D).all():
+                if (bold_affine[0] == -affine3D[0]).all():
+                    warnMsgOrient = ("The orientation of the input 4D volume seems to be left/right flipped "
+                                     "compared to the orientation of the anatomical priors (which should be "
+                                     "the MNI_152 orientation).\nThe 4D volume will be flipped during the processing "
+                                     "but the output will be flipped back to the original 4D orientation.")
+                    warnings.warn(warnMsgOrient)
+                    flipLR = True
+                    print("Orientation of the input 4D volume:")
+                    print(bold_affine.astype(int))
+                    print("orientation of the priors:")
+                    print(affine3D.astype(int))
+                else:
+                    print("The orientation of the input 4D volume in not the same as orientation of the anatomical "
+                          "priors (which should be the MNI_152 orientation):\n"
+                          "Anatomical white matter prior's orientation:")
+                    print(affine3D.astype(int))
+                    print("Input 4D volume's orientation:")
+                    print(bold_affine.astype(int))
+                    raise ValueError('Wrong data orientation, or not in MNI152 space.')
+            bold_vol = bold_img.get_fdata(dtype=bold_dtype)
+            if flipLR:
+                bold_vol = np.flip(bold_vol, 0)
 
             # Computing the DataFrame containing the median timeseries of all the regions
             print('Computation of BOLD median for each region')
@@ -880,7 +921,10 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             if prior_type == 'nii':
                 for reg in listRegions:
                     region_img = nib.load(os.path.join(regions_loc, f'{reg}.nii.gz'))
-                    region_vol = region_img.get_fdata(dtype=region_img.get_data_dtype())
+                    try:
+                        region_vol = region_img.get_fdata(dtype=region_img.get_data_dtype())
+                    except ValueError:
+                        region_vol = region_img.get_fdata().astype(region_img.get_data_dtype())
                     region_vol *= template_vol  # masking
                     if region_vol.sum():  # if region not empty
                         region_BOLD = bold_vol[np.where(region_vol)]
@@ -959,6 +1003,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             if maskOutput:
                 sum_pmap4D_all *= np.expand_dims(template_vol, -1)
             # Saving the results
+            if flipLR:
+                sum_pmap4D_all = np.flip(sum_pmap4D_all, 0)
             sum_pmap4D_img = nib.Nifti1Image(sum_pmap4D_all, bold_affine, bold_header)
             nib.save(sum_pmap4D_img, finalOutPath)
             time.sleep(5)  # Waiting a bit, just in case...
@@ -1027,17 +1073,45 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                 # print(alreadyThereMsg)
                 warnings.warn(alreadyThereMsg)
                 sum_pmap_img = nib.load(sumpath)
-                sum_pmap_all = sum_pmap_img.get_fdata(dtype=sum_pmap_img.get_data_dtype())
+                try:
+                    sum_pmap_all = sum_pmap_img.get_fdata(dtype=sum_pmap_img.get_data_dtype())
+                except ValueError:
+                    sum_pmap_all = sum_pmap_img.get_fdata().astype(sum_pmap_img.get_data_dtype())
 
             # Loading the 4D BOLD file
             print('Loading 4D data...')
             bold_img = nib.load(boldf)
-            bold_dtype = bold_img.get_data_dtype().name
-            bold_vol = bold_img.get_fdata(dtype=bold_dtype)
             bold_header = bold_img.header
             bold_affine = bold_img.affine
             bold_shape = bold_img.shape
-
+            bold_dtype = bold_img.get_data_dtype().name
+            # Checking if the data has proper dimension and orientation
+            if bold_img.ndim == 3:
+                raise ValueError('The input NIfTI volume is 3D. The Functionnectome only accepts 4D volumes.')
+            flipLR = False
+            if not (bold_affine == affine3D).all():
+                if (bold_affine[0] == -affine3D[0]).all():
+                    warnMsgOrient = ("The orientation of the input 4D volume seems to be left/right flipped "
+                                     "compared to the orientation of the anatomical priors (which should be "
+                                     "the MNI_152 orientation).\nThe 4D volume will be flipped during the processing "
+                                     "but the output will be flipped back to the original 4D orientation.")
+                    warnings.warn(warnMsgOrient)
+                    flipLR = True
+                    print("Orientation of the input 4D volume:")
+                    print(bold_affine.astype(int))
+                    print("orientation of the priors:")
+                    print(affine3D.astype(int))
+                else:
+                    print("The orientation of the input 4D volume in not the same as orientation of the anatomical "
+                          "priors (which should be the MNI_152 orientation):\n"
+                          "Anatomical white matter prior's orientation:")
+                    print(affine3D.astype(int))
+                    print("Input 4D volume's orientation:")
+                    print(bold_affine.astype(int))
+                    raise ValueError('Wrong data orientation, or not in MNI152 space.')
+            bold_vol = bold_img.get_fdata(dtype=bold_dtype)
+            if flipLR:
+                bold_vol = np.flip(bold_vol, 0)
             if np.dtype(bold_dtype) is np.dtype('float32'):
                 bold_ctype = 'f'
             elif np.dtype(bold_dtype) is np.dtype('float64'):
@@ -1108,6 +1182,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             if maskOutput:
                 sum_pmap4D_all *= np.expand_dims(template_vol, -1)
             # Saving the results
+            if flipLR:
+                sum_pmap4D_all = np.flip(sum_pmap4D_all, 0)
             sum_pmap4D_img = nib.Nifti1Image(sum_pmap4D_all, bold_affine, bold_header)
             nib.save(sum_pmap4D_img, finalOutPath)
             time.sleep(5)

@@ -11,7 +11,7 @@ The `Functionnectome` can run on a standard computer depending on the type of an
 
 ## Operating system
 The `Functionnectome` is supported for MacOS and Linux. It might work on Windows but has yet to be tested.
-The package was only tested on Linux (Centos7) for the moment. Test on MacOS are coming soon (but it should work). Test on Windows will come later.
+The package has been tested on Linux (Centos7) and MacOS. Test on Windows will come later.
 
 ## Python Dependencies
 The package mostly requires default Python libraries. It also depends on classic scientific libraries:

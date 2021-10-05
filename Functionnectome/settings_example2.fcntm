@@ -1,0 +1,37 @@
+Output folder:
+	/myHome/myProject/task1/outDir
+Analysis ('voxel' or 'region'):
+	region
+Number of parallel processes:
+	4
+Priors stored as ('h5' or 'nii'):
+	nii
+Position of the subjects ID in their path:
+	-1
+Mask the output:
+	1
+Number of subjects:
+	4
+Number of masks:
+	1
+Subject's BOLD paths:
+/myHome/myProject/task1/BOLDdata/tfMRI_TASK1_subj01.nii.gz
+/myHome/myProject/task1/BOLDdata/tfMRI_TASK1_subj02.nii.gz
+/myHome/myProject/task1/BOLDdata/tfMRI_TASK1_subj03.nii.gz
+/myHome/myProject/task1/BOLDdata/tfMRI_TASK1_subj04.nii.gz
+
+Masks for voxelwise analysis:
+/myHome/myProject/anat/masks/gray_matter.nii.gz
+
+###
+HDF5 path:
+
+Template path:
+	/myHome/myProject/anat/brainT1template.nii.gz
+Probability maps (voxel) path:
+
+Probability maps (region) path:
+	/myHome/myProject/priors/probaMaps_atlas
+Region masks path:
+	/myHome/myProject/priors/decomposed_atlas
+###

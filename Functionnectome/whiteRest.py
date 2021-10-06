@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Jun 24 14:35:26 2021
 
-@author: nozais
-
-Explore the white matter of RSNs, and determin the potential impact of white matter lesions to RSNs
+Explore the white matter of RSNs, and determine the potential impact of white matter lesions to RSNs
 
 Options:
     - Print or no print pictures:
         - pie chart
-        - Brain cross-section
-        - RSN 3D picture
+        - Brain cross-section  # TODO maybe
+        - RSN 3D picture  # TODO maybe
     - Witout z-score threshold:
         - Output presence raw value / proportion
         - What threshold for the outpout
@@ -20,6 +17,8 @@ Options:
         - Output binarised share
         - Output proprotion of the total RSN map?
     - Save output in txt file
+
+TODO Add option to input multiple ROI (4D vol)
 """
 
 import nibabel as nib
@@ -27,9 +26,61 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import argparse
-import warnings
+import os
 
 # %%
+
+
+def _build_arg_parser():
+    p = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
+                                description=__doc__)
+    # Positional argument (obligatory)
+    p.add_argument('in_ROI',
+                   help='Path of the ROI file (.nii, .nii.gz).')
+    p.add_argument('atlas_maps',
+                   help='Path of the RSN atlas (.nii, nii.gz).')
+    p.add_argument('atlas_labels',
+                   help='Path to the atlas labels identifying the RSNs.')
+
+    # Optional arguments
+    p.add_argument('--out_table',
+                   help='Path to save the results (.csv).')
+    p.add_argument('--Z_thresh',
+                   default=7,
+                   help='Threshold to apply to the atlas z-maps (default z>7).')
+    p.add_argument('--binarize',
+                   action='store_true',
+                   help='Binarize the maps after thresholding.')
+    p.add_argument('--out_pie',
+                   help='Path to save the a pie-chart figure of the results (.png).')
+    p.add_argument('--thr_low_pie',
+                   default=3,
+                   help='Presence % under which the RSNs are grouped on the pie-chart.')
+
+    return p
+
+
+def checkOutFile(parser, path):
+    path = os.path.abspath(path)
+    pathDir = os.path.dirname(path)
+    nameFile = os.path.basename(path)
+    if not os.path.isdir(pathDir):
+        parser.error(
+            f"The directory of the output file '{nameFile}' does not exist."
+            f"Please change the output directory or create it ({pathDir})."
+            )
+    if os.path.isfile(path):
+        parser.error(
+            f"The output file '{path}' already exists. Change the name or delete it."
+            )
+
+
+def checkInFile(parser, path):
+    path = os.path.abspath(path)
+    if not os.path.isfile(path):
+        parser.error(
+            f"The input file '{path}' does not exists. Check and correct the path, then retry."
+            )
 
 
 def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
@@ -92,50 +143,80 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
     return resPresence
 
 
-# options = {'zThresh': 7,
-#            'rsnThresh': 5,
-#            'bin': False,
-#            'propRSN': False,
-#            'figs': True
-#            }
-ROI_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
-         'apply_funtome/ROI_centrum_semiovale_atlasBCBLAB_thr0p5_2mm.nii.gz')
-atlas_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
-           'apply_funtome/group_zmaps_best_masked.nii.gz')
-RSNlabels_f = '/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/labels_31RSN.csv'
-zThresh = 0
+def plot_pie(res, outFile, thresh_percent):
+    res = res.sort_values('Presence (%)').reset_index()
+    lowrsn = (res['Presence (%)'] < thresh_percent)
+    lowrsnNb = lowrsn.sum()
+    res_thr = res.copy()
+    sumLow = 0
+    if lowrsnNb > 1:
+        for i in range(lowrsnNb):
+            sumLow += res.loc[i, 'Presence (raw)']
+            res_thr = res_thr.drop(i)
+        res_thr = pd.concat([pd.DataFrame({'RSN label': [f'< 5% ({lowrsnNb})'], 'Presence (raw)': [sumLow]}), res_thr],
+                            ignore_index=True)
+        cmap = plt.get_cmap('Spectral')
+        colors = [cmap(i) for i in np.linspace(0, 1, len(res_thr))]
+        expl = [0 for i in range(len(res_thr))]  # To put the low value appart in the pie-chart
+        expl[0] = 0.1
+        plt.figure(figsize=(8, 8), dpi=80)
+        patches, texts, autotexts = plt.pie(res_thr['Presence (raw)'],
+                                            labels=res_thr['RSN label'],
+                                            autopct='%1.1f%%',
+                                            shadow=False,
+                                            colors=colors,
+                                            explode=expl,
+                                            pctdistance=0.8)
+        for autotxt in autotexts:
+            autotxt.set_fontsize(15)
+        plt.savefig(outFile)
+    else:
+        cmap = plt.get_cmap('Spectral')
+        colors = [cmap(i) for i in np.linspace(0, 1, len(res))]
+        plt.figure(figsize=(8, 8), dpi=80)
+        patches, texts, autotexts = plt.pie(res['Presence (raw)'], labels=res['RSN label'],
+                                            autopct='%1.1f%%', shadow=False, colors=colors, pctdistance=0.8)
+        for autotxt in autotexts:
+            autotxt.set_fontsize(15)
+        plt.savefig(outFile)
 
-res = computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh)
 
-res = res.sort_values('Presence (%)').reset_index()
-thresh_percent = 3  # RSN with les than X% are grouped together
-lowrsn = (res['Presence (%)'] < thresh_percent)
-lowrsnNb = lowrsn.sum()
-res_thr = res.copy()
-sumLow = 0
+def main():
+    parser = _build_arg_parser()
+    args = parser.parse_args()
 
-if lowrsnNb > 1:
-    for i in range(lowrsnNb):
-        sumLow += res.loc[i, 'Presence (raw)']
-        res_thr = res_thr.drop(i)
-    res_thr = pd.concat([pd.DataFrame({'RSN label': [f'< 5% ({lowrsnNb})'], 'Presence (raw)': [sumLow]}), res_thr],
-                        ignore_index=True)
-    cmap = plt.get_cmap('Spectral')
-    colors = [cmap(i) for i in np.linspace(0, 1, len(res_thr))]
-    expl = [0 for i in range(len(res_thr))]  # To put the low value appart in the pie-chart
-    expl[0] = 0.1
-    plt.figure(figsize=(8, 8), dpi=80)
-    patches, texts, autotexts = plt.pie(res_thr['Presence (raw)'], labels=res_thr['RSN label'],
-                                        autopct='%1.1f%%', shadow=False, colors=colors, explode=expl, pctdistance=0.8)
-    for autotxt in autotexts:
-        autotxt.set_fontsize(15)
-    plt.show()
-else:
-    cmap = plt.get_cmap('Spectral')
-    colors = [cmap(i) for i in np.linspace(0, 1, len(res))]
-    plt.figure(figsize=(8, 8), dpi=80)
-    patches, texts, autotexts = plt.pie(res['Presence (raw)'], labels=res['RSN label'],
-                                        autopct='%1.1f%%', shadow=False, colors=colors, pctdistance=0.8)
-    for autotxt in autotexts:
-        autotxt.set_fontsize(15)
-    plt.show()
+    # ROI_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
+    #          'apply_funtome/ROI_centrum_semiovale_atlasBCBLAB_thr0p5_2mm.nii.gz')
+    # atlas_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
+    #            'apply_funtome/group_zmaps_best_masked.nii.gz')
+    # RSNlabels_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
+    #                'labels_31RSN.csv')
+    # zThresh = 0
+    ROI_f = args.in_ROI
+    atlas_f = args.atlas_maps
+    RSNlabels_f = args.atlas_labels
+    zThresh = args.Z_thresh
+    binarize = args.binarize
+
+    checkInFile(parser, ROI_f)
+    checkInFile(parser, atlas_f)
+    checkInFile(parser, RSNlabels_f)
+
+    if args.out_table:
+        checkOutFile(parser, args.out_table)
+    if args.out_pie:
+        checkOutFile(parser, args.out_pie)
+
+    res = computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh, binarize)
+
+    if args.out_table:
+        res.to_csv(args.out_table)
+    else:
+        print(res)
+
+    if args.out_pie:
+        plot_pie(res, args.out_pie, args.thr_low_pie)
+
+
+if __name__ == "__main__":
+    main()

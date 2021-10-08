@@ -19,6 +19,16 @@ Options:
     - Save output in txt file
 
 TODO Add option to input multiple ROI (4D vol)
+
+
+    ROI_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
+              'apply_funtome/ROI_centrum_semiovale_atlasBCBLAB_thr0p5_2mm.nii.gz')
+    atlas_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
+                'apply_funtome/group_zmaps_best_masked.nii.gz')
+    RSNlabels_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
+                    'labels_31RSN.csv')
+    zThresh = 0
+
 """
 
 import nibabel as nib
@@ -123,7 +133,7 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
     atlas = np.nan_to_num(atlas)
     totalPresRSN = [atlas[..., i].sum() for i in range(atlas.shape[-1])]
     resPresence = pd.DataFrame(columns=('RSN label', 'RSN name',
-                                        'Presence (%)', 'Presence (raw)', 'Presence (RSN)',
+                                        'Presence (%)', 'Presence (raw)', 'Presence/RSN (%)',
                                         'Coverage (%)'))
 
     ROIinAtlas = atlas[ROI]  # 2D array ROIxRSN
@@ -138,7 +148,7 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
     presence = ROIinAtlas.sum(0)
     presenceProp = 100*presence/presence.sum()
     presenceRSNprop = 100*presence/totalPresRSN
-    coverage = binMaps.sum(0)/ROI.sum()
+    coverage = 100*binMaps.sum(0)/ROI.sum()
 
     indRSNpresent = np.argwhere(presence).T[0]
     for i in indRSNpresent:
@@ -193,13 +203,6 @@ def main():
     parser = _build_arg_parser()
     args = parser.parse_args()
 
-    # ROI_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
-    #          'apply_funtome/ROI_centrum_semiovale_atlasBCBLAB_thr0p5_2mm.nii.gz')
-    # atlas_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
-    #            'apply_funtome/group_zmaps_best_masked.nii.gz')
-    # RSNlabels_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
-    #                'labels_31RSN.csv')
-    # zThresh = 0
     ROI_f = args.in_ROI
     atlas_f = args.atlas_maps
     RSNlabels_f = args.atlas_labels

@@ -108,7 +108,7 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
     A Pandas Dataframe with the presence score of each involved RSN
 
     '''
-    ROI_im = nib.load(ROI_f)  # TODO Adda resampling to MNI if necessary
+    ROI_im = nib.load(ROI_f)  # TODO Add a resampling to MNI if necessary
     ROI = ROI_im.get_fdata().astype(bool)
     atlas_im = nib.load(atlas_f)
     atlas = atlas_im.get_fdata()
@@ -122,24 +122,32 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
         atlas = atlas[:, :, :, :-1]
     atlas = np.nan_to_num(atlas)
     totalPresRSN = [atlas[..., i].sum() for i in range(atlas.shape[-1])]
-    resPresence = pd.DataFrame(columns=('RSN label', 'RSN name', 'Presence (%)', 'Presence (raw)', 'Presence (RSN)'))
+    resPresence = pd.DataFrame(columns=('RSN label', 'RSN name',
+                                        'Presence (%)', 'Presence (raw)', 'Presence (RSN)',
+                                        'Coverage (%)'))
 
     ROIinAtlas = atlas[ROI]  # 2D array ROIxRSN
     ROIinAtlas[ROIinAtlas < zThresh] = 0
     if binarize:  # Sould only be used if zThresh > 0, but I don't enforce it
         ROIinAtlas[ROIinAtlas > 0] = 1
+        binMaps = ROIinAtlas
+    else:
+        binMaps = ROIinAtlas.copy()
+        binMaps[binMaps > 0] = 1
 
     presence = ROIinAtlas.sum(0)
     presenceProp = 100*presence/presence.sum()
     presenceRSNprop = 100*presence/totalPresRSN
+    coverage = binMaps.sum(0)/ROI.sum()
 
     indRSNpresent = np.argwhere(presence).T[0]
     for i in indRSNpresent:
-        resPresence.loc[i] = [RSNlabels.loc[i, 'RSN label'],
-                              RSNlabels.loc[i, 'RSN name'],
-                              presenceProp[i],
-                              presence[i],
-                              presenceRSNprop[i]]
+        resPresence.loc[i] = [RSNlabels.loc[i, 'RSN label'],  # RSN label
+                              RSNlabels.loc[i, 'RSN name'],  # RSN name
+                              presenceProp[i],  # Presence (%)
+                              presence[i],  # Presence (raw)
+                              presenceRSNprop[i],  # Presence (RSN)
+                              coverage[i]]  # Coverage
     return resPresence
 
 

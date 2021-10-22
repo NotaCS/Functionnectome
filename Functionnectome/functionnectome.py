@@ -603,7 +603,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                         templP = filedialog.askopenfilename(parent=root,
                                                             initialdir=home,
                                                             title='Select the brain template',
-                                                            filetypes=[("NIfTI", ".nii .nii.gz")])
+                                                            filetypes=[("NIfTI", ".nii .gz")])
                     root.destroy()
                 else:
                     templP = input('No brain template found.\nType (or paste) the path to the file:\n')

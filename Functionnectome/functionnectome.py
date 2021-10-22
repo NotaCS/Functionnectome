@@ -893,22 +893,23 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             flipLR = False
             if not (bold_affine == affine3D).all():
                 if (bold_affine[0] == -affine3D[0]).all():
-                    warnMsgOrient = ("The orientation of the input 4D volume seems to be left/right flipped "
-                                     "compared to the orientation of the anatomical priors (which should be "
-                                     "the MNI_152 orientation).\nThe 4D volume will be flipped during the processing "
-                                     "but the output will be flipped back to the original 4D orientation.")
+                    warnMsgOrient = ("The orientation of the input 4D volume seems to be in  RAS orientation, i.e."
+                                     " left/right flipped compared to the orientation of the anatomical priors "
+                                     "(which should be the MNI_152 space with LAS orientation).\nThe 4D volume "
+                                     "will be flipped to LAS during the processing but the output will be flipped back "
+                                     "to the original 4D orientation (RAS).")
                     warnings.warn(warnMsgOrient)
                     flipLR = True
                     print("Orientation of the input 4D volume:")
                     print(bold_affine.astype(int))
-                    print("orientation of the priors:")
+                    print("\nOrientation of the priors:")
                     print(affine3D.astype(int))
                 else:
                     print("The orientation of the input 4D volume in not the same as orientation of the anatomical "
-                          "priors (which should be the MNI_152 orientation):\n"
+                          "priors (which should be the MNI_152 2mm space):\n"
                           "Anatomical white matter prior's orientation:")
                     print(affine3D.astype(int))
-                    print("Input 4D volume's orientation:")
+                    print("\nInput 4D volume's orientation:")
                     print(bold_affine.astype(int))
                     raise ValueError('Wrong data orientation, or not in MNI152 space.')
             bold_vol = bold_img.get_fdata(dtype=bold_dtype)

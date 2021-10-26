@@ -591,11 +591,15 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     if askDL.upper().strip() == 'D':
                         prior_dirpath_h5 = input('Type (or paste) the path to the folder '
                                                  'where you want to save the priors:\n')
+                        prior_dirpath_h5 = prior_dirpath_h5.strip()
+                        prior_dirpath_h5 = prior_dirpath_h5.replace('\\ ', ' ')  # If pasted from a file explorer
                         if prior_dirpath_h5:
                             Download_H5(prior_dirpath_h5)
                             h5P = os.path.join(prior_dirpath_h5, 'functionnectome_7TpriorsH5.zip')
                     elif askDL.upper().strip() == 'S':
                         h5P = input('Type (or paste) the path to the HDF5 priors file:\n')
+                        h5P = h5P.strip()
+                        h5P = h5P.replace('\\ ', ' ')  # If pasted from a file explorer
                     else:
                         print('Wrong entry (neither D nor S). Canceled...')
 
@@ -620,10 +624,12 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                         templP = filedialog.askopenfilename(parent=root,
                                                             initialdir=home,
                                                             title='Select the brain template',
-                                                            filetypes=[("NIfTI", ".nii .nii.gz")])
+                                                            filetypes=[("NIfTI", ".nii .gz")])
                     root.destroy()
                 else:
                     templP = input('No brain template found.\nType (or paste) the path to the file:\n')
+                    templP = templP.strip()
+                    templP = templP.replace('\\ ', ' ')  # If pasted from a file explorer
                 if os.path.exists(templP):
                     priors_paths['template'] = templP
                     print(f'Selected file for brain template : {templP}')
@@ -653,6 +659,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     else:
                         regP = input("The folder containing the brain regions was not found."
                                      "\nType (or paste) the path to the folder:\n")
+                        regP = regP.strip()
+                        regP = regP.replace('\\ ', ' ')  # If pasted from a file explorer
 
                     if os.path.exists(regP):
                         priors_paths['regions'] = regP
@@ -683,6 +691,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     else:
                         pmapsP = input("The folder containing the brain regions probability maps "
                                        "was not found.\nType (or paste) the path to the folder:\n")
+                        pmapsP = pmapsP.strip()
+                        pmapsP = pmapsP.replace('\\ ', ' ')  # If pasted from a file explorer
 
                     if os.path.exists(pmapsP):
                         priors_paths['region_pmap'] = pmapsP
@@ -712,6 +722,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     else:
                         pmapsP = input("The folder containing the brain voxels probability maps "
                                        "was not found.\nType (or paste) the path to the folder:\n")
+                        pmapsP = pmapsP.strip()
+                        pmapsP = pmapsP.replace('\\ ', ' ')  # If pasted from a file explorer
 
                     if os.path.exists(pmapsP):
                         priors_paths['voxel_pmap'] = pmapsP
@@ -910,22 +922,23 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             flipLR = False
             if not (bold_affine == affine3D).all():
                 if (bold_affine[0] == -affine3D[0]).all():
-                    warnMsgOrient = ("The orientation of the input 4D volume seems to be left/right flipped "
-                                     "compared to the orientation of the anatomical priors (which should be "
-                                     "the MNI_152 orientation).\nThe 4D volume will be flipped during the processing "
-                                     "but the output will be flipped back to the original 4D orientation.")
+                    warnMsgOrient = ("The orientation of the input 4D volume seems to be in  RAS orientation, i.e."
+                                     " left/right flipped compared to the orientation of the anatomical priors "
+                                     "(which should be the MNI_152 space with LAS orientation).\nThe 4D volume "
+                                     "will be flipped to LAS during the processing but the output will be flipped back "
+                                     "to the original 4D orientation (RAS).")
                     warnings.warn(warnMsgOrient)
                     flipLR = True
                     print("Orientation of the input 4D volume:")
                     print(bold_affine.astype(int))
-                    print("orientation of the priors:")
+                    print("\nOrientation of the priors:")
                     print(affine3D.astype(int))
                 else:
                     print("The orientation of the input 4D volume in not the same as orientation of the anatomical "
-                          "priors (which should be the MNI_152 orientation):\n"
+                          "priors (which should be the MNI_152 2mm space):\n"
                           "Anatomical white matter prior's orientation:")
                     print(affine3D.astype(int))
-                    print("Input 4D volume's orientation:")
+                    print("\nInput 4D volume's orientation:")
                     print(bold_affine.astype(int))
                     raise ValueError('Wrong data orientation, or not in MNI152 space.')
             bold_vol = bold_img.get_fdata(dtype=bold_dtype)

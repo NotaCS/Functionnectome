@@ -2,6 +2,8 @@
 The `Functionnectome` is a python package which apply the eponym method and combines the functional signal from distant voxels of the classical
 fMRI 4D volume using their probabilistic structural relationship given by anatomical priors of the involved brain circuits.
 
+To launch the `Functionnectome`, if it was properly installed with the `pip` command (see **Installation** below), open a terminal and run the command `FunctionnectomeGUI` to use the GUI, or `Functionnectome <setting_file.fcntm>` if you already have a settings file ready.
+
 # Documentation
 The complete manual is available of the project's GitHub page (https://github.com/NotaCS/Functionnectome) under the name The_Functionnectome_Userguide.pdf 
 

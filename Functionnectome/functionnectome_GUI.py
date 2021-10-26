@@ -371,7 +371,8 @@ class Functionnectome_GUI(tk.Tk):
 
         def ok_btn():
             prePath1 = txtPaths.get('1.0', tk.END).split('\n')
-            prePath1 = list(map(lambda s: "".join(s.split()), prePath1))  # remove all whitespaces
+            # prePath1 = list(map(lambda s: "".join(s.split()), prePath1))  # remove all whitespaces (WHY??? Windows?)
+            prePath1 = [p.strip() for p in prePath1]  # Remove leading and trailing whitespaces⎄
             prePath2 = list(filter(None, prePath1))  # remove empty lines
             prePath2.sort()
 

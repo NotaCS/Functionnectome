@@ -154,7 +154,10 @@ def LogDiplayPercent(logDir, previous_percent=0):
             timestep = (int(spiltLastLine[5])*60 + int(spiltLastLine[8])
                         - (int(spiltPrevLine[5])*60 + int(spiltPrevLine[8])))
             stepLength = int(spiltLastLine[1]) - int(spiltPrevLine[1])
-            procETA = round(timestep*(totalLen-procLen)/stepLength)
+            if stepLength:
+                procETA = round(timestep*(totalLen-procLen)/stepLength)
+            else:
+                procETA = 0
             if procETA > maxETA:
                 maxETA = procETA
     meanProgress = sum(currentLen)/len(currentLen)
@@ -221,11 +224,14 @@ def Sum_regionwise_pmaps(regions_batch):
                     log.write(logtxt)
             try:
                 region_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], f'{reg}.nii.gz'))
-            except:
-                logtxt = f'Region {reg} does not have an associated pmap. Closing the process...\n'
-                with open(logFile, "a") as log:
-                    log.write(logtxt)
-                return None
+            except FileNotFoundError:
+                try:
+                    region_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], f'{reg}.nii'))
+                except FileNotFoundError:
+                    logtxt = f'Region {reg} does not have an associated pmap. Closing the process...\n'
+                    with open(logFile, "a") as log:
+                        log.write(logtxt)
+                    return None
             if ii == 0:
                 sum_pmap = np.zeros(dict_var['templateShape'], dtype=region_pmap_img.get_data_dtype())
             try:
@@ -269,14 +275,18 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
                 with open(logFile, "a") as log:
                     log.write(logtxt)
             try:
-                vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'],
-                                                     f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'))
-            except:
-                logtxt = (f'Voxel {indvox[0]}_{indvox[1]}_{indvox[2]} does not '
-                          'have an associated pmap. Closing the process...\n')
-                with open(logFile, "a") as log:
-                    log.write(logtxt)
-                return None
+                mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}.nii.gz'
+                vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
+            except FileNotFoundError:
+                try:
+                    mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}.nii'
+                    vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
+                except FileNotFoundError:
+                    logtxt = (f'Voxel {indvox[0]}_{indvox[1]}_{indvox[2]} does not '
+                              'have an associated pmap. Closing the process...\n')
+                    with open(logFile, "a") as log:
+                        log.write(logtxt)
+                    return None
             if ii == 0:
                 sum_pmap = np.zeros(dict_var['templateShape'], dtype=vox_pmap_img.get_data_dtype())
             try:
@@ -368,7 +378,10 @@ def Regionwise_functionnectome(batch_num):
                 with open(logFile, "a") as log:
                     log.write(logtxt)
             # Load proba map of the current region and divide it by the sum of all proba map
-            region_map_img = nib.load(os.path.join(dict_var['pmapStore'], f'{reg}.nii.gz'))
+            try:
+                region_map_img = nib.load(os.path.join(dict_var['pmapStore'], f'{reg}.nii.gz'))
+            except FileNotFoundError:
+                region_map_img = nib.load(os.path.join(dict_var['pmapStore'], f'{reg}.nii'))
             try:
                 region_map = region_map_img.get_fdata(dtype=region_map_img.get_data_dtype())
             except ValueError:
@@ -455,8 +468,12 @@ def Voxelwise_functionnectome(batch_num):
                     log.write(logtxt)
             # Load the probability map of the current voxel, combine it with the functional signal,
             # and add it to the results
-            vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'],
-                                                 f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'))
+            try:
+                mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'
+                vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
+            except FileNotFoundError:
+                mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii'
+                vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
             try:
                 vox_pmap = vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
             except ValueError:
@@ -766,7 +783,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
         template_img = nib.load(template_path)
         template_vol = template_img.get_fdata().astype(bool)  # binarized
         if anatype == 'region':
-            listRegionsFiles = glob.glob(os.path.join(regions_loc, '*.nii.gz'))
+            listRegionsFiles = glob.glob(os.path.join(regions_loc, '*.nii*'))
             listRegions = [os.path.basename(reg).rsplit('.', 2)[0] for reg in listRegionsFiles]
             listRegions.sort()
             regions_batchs = np.array_split(listRegions, nb_of_batchs)
@@ -775,7 +792,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             header3D = base_region_img.header
 
         elif anatype == 'voxel':
-            listVoxFiles = glob.glob(os.path.join(pmap_loc, '*.nii.gz'))
+            listVoxFiles = glob.glob(os.path.join(pmap_loc, '*.nii*'))
             base_vox_img = nib.load(listVoxFiles[0])
             affine3D = base_vox_img.affine
             header3D = base_vox_img.header
@@ -850,7 +867,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     print('Launching parallel computation: Sum of probability maps')
                     out_batch_sum = pool.map_async(Sum_regionwise_pmaps, regions_batchs)
                     # Diplay the progress
-                    percent = None  # to keep track of the preivous
+                    percent = None  # to keep track of the previous
                     while not out_batch_sum.ready():
                         percent = LogDiplayPercent(results_dir, percent)
                         time.sleep(1)
@@ -920,7 +937,10 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             regions_BOLD_median = pd.DataFrame(columns=listRegions)
             if prior_type == 'nii':
                 for reg in listRegions:
-                    region_img = nib.load(os.path.join(regions_loc, f'{reg}.nii.gz'))
+                    try:
+                        region_img = nib.load(os.path.join(regions_loc, f'{reg}.nii.gz'))
+                    except FileNotFoundError:
+                        region_img = nib.load(os.path.join(regions_loc, f'{reg}.nii'))
                     try:
                         region_vol = region_img.get_fdata(dtype=region_img.get_data_dtype())
                     except ValueError:

@@ -275,11 +275,11 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
                 with open(logFile, "a") as log:
                     log.write(logtxt)
             try:
-                mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}.nii.gz'
+                mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'
                 vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
             except FileNotFoundError:
                 try:
-                    mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}.nii'
+                    mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii'
                     vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
                 except FileNotFoundError:
                     logtxt = (f'Voxel {indvox[0]}_{indvox[1]}_{indvox[2]} does not '

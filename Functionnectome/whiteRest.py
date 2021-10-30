@@ -53,19 +53,19 @@ def _build_arg_parser():
                    help='Path to the atlas labels identifying the RSNs.')
 
     # Optional arguments
-    p.add_argument('--out_table',
-                   help='Path to save the results (.csv).')
-    p.add_argument('--Z_thresh',
+    p.add_argument('-o', '--out_table',
+                   help='Path to save the results (.txt or .csv).')
+    p.add_argument('-z', '--Z_thresh',
                    default=7,
                    help='Threshold to apply to the atlas z-maps (default z>7).')
-    p.add_argument('--binarize',
+    p.add_argument('-b', '--binarize',
                    action='store_true',
                    help='Binarize the maps after thresholding.')
-    p.add_argument('--out_pie',
+    p.add_argument('-p', '--out_pie',
                    help='Path to save the a pie-chart figure of the results (.png).')
-    p.add_argument('--thr_low_pie',
+    p.add_argument('-pt', '--thr_low_pie',
                    default=3,
-                   help='Presence % under which the RSNs are grouped on the pie-chart.')
+                   help='Presence %% under which the RSNs are grouped on the pie-chart.')
 
     return p
 
@@ -122,7 +122,7 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
     ROI = ROI_im.get_fdata().astype(bool)
     atlas_im = nib.load(atlas_f)
     atlas = atlas_im.get_fdata()
-    RSNlabels = pd.read_csv(RSNlabels_f)
+    RSNlabels = pd.read_csv(RSNlabels_f, sep='\t')
 
     if len(RSNlabels) != atlas.shape[3]:
         raise IndexError('Number of RSNs in the atlas and the label file not the same')
@@ -132,7 +132,7 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
         atlas = atlas[:, :, :, :-1]
     atlas = np.nan_to_num(atlas)
     totalPresRSN = [atlas[..., i].sum() for i in range(atlas.shape[-1])]
-    resPresence = pd.DataFrame(columns=('RSN label', 'RSN name',
+    resPresence = pd.DataFrame(columns=('RSN number', 'RSN name',
                                         'Presence (%)', 'Presence (raw)', 'Presence/RSN (%)',
                                         'Coverage (%)'))
 
@@ -152,7 +152,7 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
 
     indRSNpresent = np.argwhere(presence).T[0]
     for i in indRSNpresent:
-        resPresence.loc[i] = [RSNlabels.loc[i, 'RSN label'],  # RSN label
+        resPresence.loc[i] = [RSNlabels.loc[i, 'RSN number'],  # RSN number
                               RSNlabels.loc[i, 'RSN name'],  # RSN name
                               presenceProp[i],  # Presence (%)
                               presence[i],  # Presence (raw)
@@ -179,7 +179,7 @@ def plot_pie(res, outFile, thresh_percent):
         expl[0] = 0.1
         plt.figure(figsize=(8, 8), dpi=80)
         patches, texts, autotexts = plt.pie(res_thr['Presence (raw)'],
-                                            labels=res_thr['RSN label'],
+                                            labels=res_thr['RSN number'],
                                             autopct='%1.1f%%',
                                             shadow=False,
                                             colors=colors,
@@ -192,7 +192,7 @@ def plot_pie(res, outFile, thresh_percent):
         cmap = plt.get_cmap('Spectral')
         colors = [cmap(i) for i in np.linspace(0, 1, len(res))]
         plt.figure(figsize=(8, 8), dpi=80)
-        patches, texts, autotexts = plt.pie(res['Presence (raw)'], labels=res['RSN label'],
+        patches, texts, autotexts = plt.pie(res['Presence (raw)'], labels=res['RSN number'],
                                             autopct='%1.1f%%', shadow=False, colors=colors, pctdistance=0.8)
         for autotxt in autotexts:
             autotxt.set_fontsize(15)
@@ -206,7 +206,7 @@ def main():
     ROI_f = args.in_ROI
     atlas_f = args.atlas_maps
     RSNlabels_f = args.atlas_labels
-    zThresh = args.Z_thresh
+    zThresh = float(args.Z_thresh)
     binarize = args.binarize
 
     checkInFile(parser, ROI_f)
@@ -221,13 +221,13 @@ def main():
     res = computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh, binarize)
 
     if args.out_table:
-        res.to_csv(args.out_table)
+        res.to_csv(args.out_table, sep='\t')
     else:
         print(res)
 
     if args.out_pie:
-        plot_pie(res, args.out_pie, args.thr_low_pie)
+        plot_pie(res, args.out_pie, float(args.thr_low_pie))
 
-
+#%%
 if __name__ == "__main__":
     main()

@@ -402,8 +402,100 @@ def Regionwise_functionnectome(batch_num):
                 current_split_out += np.expand_dims(region_map, 0) * current_split_in[reg].values.reshape(current_shape)
 
 
-def init_worker_voxelwise(shared4Dout, bold_ctype, reShape, nb_of_batchs,
-                          sharedBold, prior, indvox_shared, pmapStore, outDir):
+# def init_worker_voxelwise(shared4Dout, bold_ctype, reShape, nb_of_batchs,
+#                           sharedBold, prior, indvox_shared, pmapStore, outDir):
+#     '''
+#     Initialize the process of the current pool worker with the variables
+#     commonly used across the different workers.
+#     '''
+#     global dict_var
+#     dict_var = {'fun4Dout': shared4Dout,
+#                 'bold_ctype': bold_ctype,
+#                 'boldReshape': reShape,
+#                 'nb_batch': nb_of_batchs,
+#                 'bold': sharedBold,
+#                 'prior_type': prior,
+#                 'voxel_ind': indvox_shared,
+#                 'pmapStore': pmapStore,
+#                 'outDir': outDir}
+
+
+# def Voxelwise_functionnectome(batch_num):
+#     '''
+#     Computation of the voxelwise functionnectome. Used in a pool of workers for
+#     multiprocessing.
+#     Parameters shared between the processes are defined grobaly with the
+#     initiator function "init_worker_voxelwise".
+#     They are stored in the "dict_var" dictionary (as a gobal variable for the
+#     new processes spawned for the multiprocessing).
+
+#     Parameters
+#     ----------
+#     batch_num : int
+#         Number of the current batch being processed.
+
+#     Returns
+#     -------
+#     None. The results are in shared memory (in "fun_4D_shared" in the main process)
+
+#     '''
+#     startTime = time.time()
+#     nbTR = dict_var['boldReshape'][0]  # Number of volumes (TR) in the 4D data
+
+#     # Loading the 4D output data from shared memory and selecting the part to
+#     # fill in the current process (should be empty)
+#     shared4Dout_np = np.frombuffer(dict_var['fun4Dout'], dict_var['bold_ctype']).reshape(dict_var['boldReshape'])
+#     split_shared4Dout_np = np.array_split(shared4Dout_np, dict_var['nb_batch'], 0)
+#     batch_4D_out = split_shared4Dout_np[batch_num]
+
+#     # Loading the input 2D array (temporal x flattened spatial) from shared memory
+#     shared_2D_bold_np = np.frombuffer(dict_var['bold'], dict_var['bold_ctype']).reshape((nbTR, -1))
+#     split_shared_2D_bold_np = np.array_split(shared_2D_bold_np, dict_var['nb_batch'], 0)
+#     batch_bold = split_shared_2D_bold_np[batch_num].T  # put back the time dim at the end
+#     nbTRbatch = batch_bold.shape[-1]
+
+#     # Load the voxels' index (for the results to go back from 2D to 4D)
+#     shared_vox_ind_np = np.frombuffer(dict_var['voxel_ind'], 'i').reshape((-1, 3))
+
+#     logFile = os.path.join(dict_var['outDir'], f'log_{batch_num}.txt')
+
+#     if dict_var['prior_type'] == 'nii':
+#         for ii, indvox in enumerate(shared_vox_ind_np):
+#             if ii % 100 == 0:  # Check the progress every 100 steps
+#                 ctime = time.time()-startTime
+#                 logtxt = f'Voxel {ii} in {len(shared_vox_ind_np)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
+#                 with open(logFile, "a") as log:
+#                     log.write(logtxt)
+#             # Load the probability map of the current voxel, combine it with the functional signal,
+#             # and add it to the results
+#             try:
+#                 mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'
+#                 vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
+#             except FileNotFoundError:
+#                 mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii'
+#                 vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
+#             try:
+#                 vox_pmap = vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
+#             except ValueError:
+#                 vox_pmap = vox_pmap_img.get_fdata().astype(vox_pmap_img.get_data_dtype())
+#             batch_4D_out += np.expand_dims(vox_pmap, 0)*batch_bold[ii].reshape((nbTRbatch, 1, 1, 1))
+
+#     elif dict_var['prior_type'] == 'h5':
+#         with h5py.File(dict_var['pmapStore'], "r") as h5fout:
+#             for ii, indvox in enumerate(shared_vox_ind_np):
+#                 if ii % 100 == 0:  # Check the progress every 100 steps
+#                     ctime = time.time()-startTime
+#                     logtxt = f'Voxel {ii} in {len(shared_vox_ind_np)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
+#                     with open(logFile, "a") as log:
+#                         log.write(logtxt)
+#                 # Load the probability map of the current voxel, combine it with the functional signal,
+#                 # and add it to the results
+#                 vox_pmap = h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][:]
+#                 batch_4D_out += np.expand_dims(vox_pmap, 0)*batch_bold[ii].reshape((nbTRbatch, 1, 1, 1))
+
+
+def init_worker_voxelwise2(shared4Dout, bold_ctype, reShape, nb_of_batchs,
+                          sharedBold, prior, indvox_shared, gm_mask, pmapStore, outDir):
     '''
     Initialize the process of the current pool worker with the variables
     commonly used across the different workers.
@@ -416,18 +508,19 @@ def init_worker_voxelwise(shared4Dout, bold_ctype, reShape, nb_of_batchs,
                 'bold': sharedBold,
                 'prior_type': prior,
                 'voxel_ind': indvox_shared,
+                'GM mask': gm_mask,
                 'pmapStore': pmapStore,
                 'outDir': outDir}
 
 
-def Voxelwise_functionnectome(batch_num):
+def Voxelwise_functionnectome2(batch_num):
     '''
-    Computation of the voxelwise functionnectome. Used in a pool of workers for
-    multiprocessing.
-    Parameters shared between the processes are defined grobaly with the
-    initiator function "init_worker_voxelwise".
-    They are stored in the "dict_var" dictionary (as a gobal variable for the
-    new processes spawned for the multiprocessing).
+    Iterating over white matter voxels instead of grey matter voxels.
+    Parallelisation over the voxels and not the time.
+    Reduce I/O operations and replace for loops with dot product
+
+    Data from shared4Dout_np must be masked beforehand
+    selecting only the voxels in the mask for both 4D and pmap
 
     Parameters
     ----------
@@ -445,25 +538,33 @@ def Voxelwise_functionnectome(batch_num):
     # Loading the 4D output data from shared memory and selecting the part to
     # fill in the current process (should be empty)
     shared4Dout_np = np.frombuffer(dict_var['fun4Dout'], dict_var['bold_ctype']).reshape(dict_var['boldReshape'])
-    split_shared4Dout_np = np.array_split(shared4Dout_np, dict_var['nb_batch'], 0)
-    batch_4D_out = split_shared4Dout_np[batch_num]
+
+    # Load the voxels' index of the template and select the vexels for the process
+    shared_vox_ind_np = np.frombuffer(dict_var['voxel_ind'], 'i').reshape((-1, 3))
+    batch_voxels_list = np.array_split(shared_vox_ind_np, dict_var['nb_batch'], 0)
+    batch_vox = batch_voxels_list[batch_num]
+    mask = dict_var['GM mask']  # MAkes a copy for each process. But it's only a boolean array
 
     # Loading the input 2D array (temporal x flattened spatial) from shared memory
     shared_2D_bold_np = np.frombuffer(dict_var['bold'], dict_var['bold_ctype']).reshape((nbTR, -1))
-    split_shared_2D_bold_np = np.array_split(shared_2D_bold_np, dict_var['nb_batch'], 0)
-    batch_bold = split_shared_2D_bold_np[batch_num].T  # put back the time dim at the end
-    nbTRbatch = batch_bold.shape[-1]
-
-    # Load the voxels' index (for the results to go back from 2D to 4D)
-    shared_vox_ind_np = np.frombuffer(dict_var['voxel_ind'], 'i').reshape((-1, 3))
 
     logFile = os.path.join(dict_var['outDir'], f'log_{batch_num}.txt')
 
-    if dict_var['prior_type'] == 'nii':
-        for ii, indvox in enumerate(shared_vox_ind_np):
+    if dict_var['prior_type'] == 'h5':
+        for ii, indvox in enumerate(batch_vox):
             if ii % 100 == 0:  # Check the progress every 100 steps
                 ctime = time.time()-startTime
-                logtxt = f'Voxel {ii} in {len(shared_vox_ind_np)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
+                logtxt = f'Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
+                with open(logFile, "a") as log:
+                    log.write(logtxt)
+            with h5py.File(dict_var['pmapStore'], "r") as h5fout:
+                vox_pmap = h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][mask]
+                shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, vox_pmap)
+    elif dict_var['prior_type'] == 'nii':
+        for ii, indvox in enumerate(batch_vox):
+            if ii % 100 == 0:  # Check the progress every 100 steps
+                ctime = time.time()-startTime
+                logtxt = f'Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
                 with open(logFile, "a") as log:
                     log.write(logtxt)
             # Load the probability map of the current voxel, combine it with the functional signal,
@@ -478,20 +579,7 @@ def Voxelwise_functionnectome(batch_num):
                 vox_pmap = vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
             except ValueError:
                 vox_pmap = vox_pmap_img.get_fdata().astype(vox_pmap_img.get_data_dtype())
-            batch_4D_out += np.expand_dims(vox_pmap, 0)*batch_bold[ii].reshape((nbTRbatch, 1, 1, 1))
-
-    elif dict_var['prior_type'] == 'h5':
-        with h5py.File(dict_var['pmapStore'], "r") as h5fout:
-            for ii, indvox in enumerate(shared_vox_ind_np):
-                if ii % 100 == 0:  # Check the progress every 100 steps
-                    ctime = time.time()-startTime
-                    logtxt = f'Voxel {ii} in {len(shared_vox_ind_np)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
-                    with open(logFile, "a") as log:
-                        log.write(logtxt)
-                # Load the probability map of the current voxel, combine it with the functional signal,
-                # and add it to the results
-                vox_pmap = h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][:]
-                batch_4D_out += np.expand_dims(vox_pmap, 0)*batch_bold[ii].reshape((nbTRbatch, 1, 1, 1))
+            shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, vox_pmap[mask])
 
 
 # %%
@@ -1061,7 +1149,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                 voxel_mask = template_vol
             ind_mask1 = np.nonzero(voxel_mask)
             ind_mask2 = np.transpose(ind_mask1).astype('i')
-            voxel_mask_img = voxel_mask = None
+            voxel_mask_img = None
 
             # Division of arg_voxels in batches used by the grid
             split_ind = np.array_split(ind_mask2, nb_of_batchs)
@@ -1169,28 +1257,49 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             bold_vol_2D = None
 
             # Create a shared RawArray containing the index of each used voxel
-            ind_mask_shared = multiprocessing.RawArray('i', int(np.prod(ind_mask2.shape)))
-            ind_mask_shared_np = np.frombuffer(ind_mask_shared, 'i').reshape(ind_mask2.shape)
-            np.copyto(ind_mask_shared_np, ind_mask2)
-            ind_mask2 = None
+            # ind_mask_shared = multiprocessing.RawArray('i', int(np.prod(ind_mask2.shape)))
+            # ind_mask_shared_np = np.frombuffer(ind_mask_shared, 'i').reshape(ind_mask2.shape)
+            # np.copyto(ind_mask_shared_np, ind_mask2)
+            # ind_mask2 = None
+
+            # Create a shared RawArray containing the index of each used voxel
+            ind_template = np.argwhere(template_vol).astype('uint16')
+            ind_template_shared = multiprocessing.RawArray('i', int(np.prod(ind_template.shape)))
+            ind_template_shared_np = np.frombuffer(ind_template_shared, 'i').reshape(ind_template.shape)
+            np.copyto(ind_template_shared_np, ind_template)
+            ind_template = None
 
             # Create a shared RawArray that will contain the results
             bold_reshape = (bold_shape[-1], )+(bold_shape[:-1])
             fun_4D_shared = multiprocessing.RawArray(bold_ctype, int(np.prod(bold_reshape)))
 
+            # with multiprocessing.Pool(processes=nb_of_batchs,
+            #                           initializer=init_worker_voxelwise,
+            #                           initargs=(fun_4D_shared,
+            #                                     bold_ctype,
+            #                                     bold_reshape,
+            #                                     nb_of_batchs,
+            #                                     bold_2D_shared,
+            #                                     prior_type,
+            #                                     ind_mask_shared,
+            #                                     pmap_loc,
+            #                                     results_dir)
+            #                           ) as pool:
+            #     poolCheck = pool.map_async(Voxelwise_functionnectome, range(nb_of_batchs))
             with multiprocessing.Pool(processes=nb_of_batchs,
-                                      initializer=init_worker_voxelwise,
+                                      initializer=init_worker_voxelwise2,
                                       initargs=(fun_4D_shared,
                                                 bold_ctype,
                                                 bold_reshape,
                                                 nb_of_batchs,
                                                 bold_2D_shared,
                                                 prior_type,
-                                                ind_mask_shared,
+                                                ind_template_shared,
+                                                voxel_mask,
                                                 pmap_loc,
                                                 results_dir)
                                       ) as pool:
-                poolCheck = pool.map_async(Voxelwise_functionnectome, range(nb_of_batchs))
+                poolCheck = pool.map_async(Voxelwise_functionnectome2, range(nb_of_batchs))
                 percent = None  # to keep track of the preivous
                 # Diplay the progress
                 while not poolCheck.ready():

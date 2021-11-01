@@ -552,13 +552,14 @@ def Voxelwise_functionnectome2(batch_num):
 
     if dict_var['prior_type'] == 'h5':
         for ii, indvox in enumerate(batch_vox):
-            if ii % 100 == 0:  # Check the progress every 100 steps
+            if ii % 10 == 0:  # Check the progress every 10 steps
                 ctime = time.time()-startTime
                 logtxt = f'Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
                 with open(logFile, "a") as log:
                     log.write(logtxt)
             with h5py.File(dict_var['pmapStore'], "r") as h5fout:
-                vox_pmap = h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][mask]
+                vox_pmap = h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][:]
+                vox_pmap = vox_pmap[mask]
                 shared4Dout_np[:, indvox[0], indvox[1], indvox[2]] = np.dot(shared_2D_bold_np, vox_pmap)
     elif dict_var['prior_type'] == 'nii':
         for ii, indvox in enumerate(batch_vox):

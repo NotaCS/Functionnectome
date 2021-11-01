@@ -559,7 +559,7 @@ def Voxelwise_functionnectome2(batch_num):
                     log.write(logtxt)
             with h5py.File(dict_var['pmapStore'], "r") as h5fout:
                 vox_pmap = h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][mask]
-                shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, vox_pmap)
+                shared4Dout_np[:, indvox[0], indvox[1], indvox[2]] = np.dot(shared_2D_bold_np, vox_pmap)
     elif dict_var['prior_type'] == 'nii':
         for ii, indvox in enumerate(batch_vox):
             if ii % 100 == 0:  # Check the progress every 100 steps
@@ -579,7 +579,7 @@ def Voxelwise_functionnectome2(batch_num):
                 vox_pmap = vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
             except ValueError:
                 vox_pmap = vox_pmap_img.get_fdata().astype(vox_pmap_img.get_data_dtype())
-            shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, vox_pmap[mask])
+            shared4Dout_np[:, indvox[0], indvox[1], indvox[2]] = np.dot(shared_2D_bold_np, vox_pmap[mask])
 
 
 # %%
@@ -998,9 +998,10 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     sum_pmap_all = sum_pmap_img.get_fdata().astype(sum_pmap_img.get_data_dtype())
 
             # Loading the 4D BOLD file
-            print('Loading 4D data...')
+            print('Loading 4D data (as float32).')
             bold_img = nib.load(boldf)
-            bold_dtype = bold_img.get_data_dtype().name
+            # bold_dtype = bold_img.get_data_dtype().name
+            bold_dtype = "float32"  # Forcing float32 for better efficiency
             bold_header = bold_img.header
             bold_affine = bold_img.affine
             bold_shape = bold_img.shape
@@ -1200,12 +1201,13 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     sum_pmap_all = sum_pmap_img.get_fdata().astype(sum_pmap_img.get_data_dtype())
 
             # Loading the 4D BOLD file
-            print('Loading 4D data...')
+            print('Loading 4D data (as float32).')
             bold_img = nib.load(boldf)
             bold_header = bold_img.header
             bold_affine = bold_img.affine
             bold_shape = bold_img.shape
-            bold_dtype = bold_img.get_data_dtype().name
+            # bold_dtype = bold_img.get_data_dtype().name
+            bold_dtype = "float32"  # Forcing float32 for better efficiency
             # Checking if the data has proper dimension and orientation
             if bold_img.ndim == 3:
                 raise ValueError('The input NIfTI volume is 3D. The Functionnectome only accepts 4D volumes.')
@@ -1286,6 +1288,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             #                                     results_dir)
             #                           ) as pool:
             #     poolCheck = pool.map_async(Voxelwise_functionnectome, range(nb_of_batchs))
+            print("New algo!")
             with multiprocessing.Pool(processes=nb_of_batchs,
                                       initializer=init_worker_voxelwise2,
                                       initargs=(fun_4D_shared,

@@ -140,6 +140,10 @@ def LogDiplayPercent(logDir, previous_percent=0):
     for logf in logList:
         with open(logf, "r") as lf:
             logtxt = lf.readlines()  # Shouldn't be too big
+        if not logtxt:
+            time.sleep(0.5)  # In case trying to read at the same time the file is created
+            with open(logf, "r") as lf:
+                logtxt = lf.readlines()
         lastline = logtxt[-1]
         spiltLastLine = lastline.split(' ')
         procLen = int(spiltLastLine[1])

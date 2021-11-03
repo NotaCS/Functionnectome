@@ -149,10 +149,10 @@ class Functionnectome_GUI(tk.Tk):
         self.lauchBtn = tk.Button(self, text='Launch', command=self.launchAna)
         self.quitBtn = tk.Button(self, text='Exit', command=self.destroy)
 
-        self.saveBtn.grid(column=0, row=3)
-        self.loadBtn.grid(column=1, row=3)
-        self.lauchBtn.grid(column=2, row=3)
-        self.quitBtn.grid(column=3, row=3)
+        self.saveBtn.grid(column=0, row=3, padx=epad, pady=epad)
+        self.loadBtn.grid(column=1, row=3, padx=epad, pady=epad)
+        self.lauchBtn.grid(column=2, row=3, padx=epad, pady=epad)
+        self.quitBtn.grid(column=3, row=3, padx=epad, pady=epad)
 
     # %% Onpen the window for masks selection
     def get_masks(self):

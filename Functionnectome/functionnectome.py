@@ -1154,7 +1154,6 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             bold_reshape = bold_shape
             fun_4D_shared = multiprocessing.RawArray('f', int(np.prod(bold_reshape)))
 
-            print("New algo!")
             with multiprocessing.Pool(processes=nb_of_batchs,
                                       initializer=init_worker_voxelwise2,
                                       initargs=(fun_4D_shared,

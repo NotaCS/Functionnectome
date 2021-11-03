@@ -9,12 +9,21 @@ Main script used for the computation of functionnectomes.
 
 "pmap" = probability map (= group level visitation map)
 
+Data is imported as float32 for all volumes, to simplify and speed up computation
+
 TODO:Regionwise and voxelwise analyses started quite differently, but they kind of
 converged on the same algorithm, so I might have to fuse them together later...
 """
 
 
 import os
+# Setting the number of threads for numpy (before importing numpy)
+threads = 1
+os.environ["OMP_NUM_THREADS"] = str(threads)
+os.environ["OPENBLAS_NUM_THREADS"] = str(threads)
+os.environ["MKL_NUM_THREADS"] = str(threads)
+os.environ["VECLIB_MAXIMUM_THREADS"] = str(threads)
+os.environ["NUMEXPR_NUM_THREADS"] = str(threads)
 import sys
 import glob
 import time
@@ -166,16 +175,13 @@ def LogDiplayPercent(logDir, previous_percent=0):
                 maxETA = procETA
     meanProgress = sum(currentLen)/len(currentLen)
     percentProgress = round(100*meanProgress/totalLen, 3)
-    if maxETA:
+    if maxETA and not percentProgress == previous_percent:
         hours = maxETA//3600
         minutes = maxETA % 3600 // 60
         if minutes + hours > 0:
             ETA = f'{hours}h and {minutes}min'
         else:
             ETA = '< 1 min'
-    else:
-        ETA = '...'
-    if not percentProgress == previous_percent:
         sys.stdout.write(f"\rProgress of the current process: {percentProgress}% ETA: {ETA}      ")
         sys.stdout.flush()
     return percentProgress
@@ -238,10 +244,7 @@ def Sum_regionwise_pmaps(regions_batch):
                     return None
             if ii == 0:
                 sum_pmap = np.zeros(dict_var['templateShape'], dtype=region_pmap_img.get_data_dtype())
-            try:
-                sum_pmap += region_pmap_img.get_fdata(dtype=region_pmap_img.get_data_dtype())
-            except ValueError:
-                sum_pmap += region_pmap_img.get_fdata().astype(region_pmap_img.get_data_dtype())
+            sum_pmap += region_pmap_img.get_fdata(dtype='float32')
     elif dict_var['prior_type'] == 'h5':
         with h5py.File(dict_var['pmapStore'], "r") as h5fout:
             for ii, reg in enumerate(regions_batch):
@@ -292,11 +295,8 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
                         log.write(logtxt)
                     return None
             if ii == 0:
-                sum_pmap = np.zeros(dict_var['templateShape'], dtype=vox_pmap_img.get_data_dtype())
-            try:
-                sum_pmap += vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
-            except ValueError:
-                sum_pmap += vox_pmap_img.get_fdata().astype(vox_pmap_img.get_data_dtype())
+                sum_pmap = np.zeros(dict_var['templateShape'], dtype='float32')
+            sum_pmap += vox_pmap_img.get_fdata(dtype='float32')
     elif dict_var['prior_type'] == 'h5':
         with h5py.File(dict_var['pmapStore'], "r") as h5fout:
             for ii, indvox in enumerate(ind_voxels_batch):
@@ -319,7 +319,7 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
     return sum_pmap
 
 
-def init_worker_regionwise(shared4D, sharedDF, outShape, boldDFshape, bold_ctype,
+def init_worker_regionwise(shared4D, sharedDF, outShape, boldDFshape,
                            regionDF, nb_of_batchs, pmapStore, prior, outDir):
     '''
     Initialize the process of the current pool worker with the variables
@@ -330,7 +330,6 @@ def init_worker_regionwise(shared4D, sharedDF, outShape, boldDFshape, bold_ctype
                 'funDF': sharedDF,
                 'boldShape': outShape,
                 'bold_DF_Shape': boldDFshape,
-                'bold_ctype': bold_ctype,
                 'regionDF': regionDF,
                 'nb_batch': nb_of_batchs,
                 'pmapStore': pmapStore,
@@ -361,13 +360,13 @@ def Regionwise_functionnectome(batch_num):
 
     # Loading the 4D array from shared memory, and selecting the batch
     # Empty, will be filled with the functionnectome data for the current batch
-    share4D_np = np.frombuffer(dict_var['fun4D'], dict_var['bold_ctype']).reshape(dict_var['boldShape'])
+    share4D_np = np.frombuffer(dict_var['fun4D'], 'f').reshape(dict_var['boldShape'])
     split_share4D_np = np.array_split(share4D_np, dict_var['nb_batch'], 0)
     current_split_out = split_share4D_np[batch_num]
 
     # Loading the dataframe from shared memory, and selecting the batch
     # Contains the functional timeseries of each region
-    sharedDF_np = np.frombuffer(dict_var['funDF'], dict_var['bold_ctype']).reshape(dict_var['bold_DF_Shape'])
+    sharedDF_np = np.frombuffer(dict_var['funDF'], 'f').reshape(dict_var['bold_DF_Shape'])
     sharedDF = pd.DataFrame(sharedDF_np, columns=dict_var['regionDF'])
     split_sharedDF = np.array_split(sharedDF, dict_var['nb_batch'], 0)
     current_split_in = split_sharedDF[batch_num]
@@ -386,10 +385,7 @@ def Regionwise_functionnectome(batch_num):
                 region_map_img = nib.load(os.path.join(dict_var['pmapStore'], f'{reg}.nii.gz'))
             except FileNotFoundError:
                 region_map_img = nib.load(os.path.join(dict_var['pmapStore'], f'{reg}.nii'))
-            try:
-                region_map = region_map_img.get_fdata(dtype=region_map_img.get_data_dtype())
-            except ValueError:
-                region_map = region_map_img.get_fdata().astype(region_map_img.get_data_dtype())
+            region_map = region_map_img.get_fdata(dtype='float32')
             current_shape = (len(current_split_in[reg]), 1, 1, 1)
             current_split_out += np.expand_dims(region_map, 0) * current_split_in[reg].values.reshape(current_shape)
     elif dict_var['prior_type'] == 'h5':
@@ -406,107 +402,14 @@ def Regionwise_functionnectome(batch_num):
                 current_split_out += np.expand_dims(region_map, 0) * current_split_in[reg].values.reshape(current_shape)
 
 
-# def init_worker_voxelwise(shared4Dout, bold_ctype, reShape, nb_of_batchs,
-#                           sharedBold, prior, indvox_shared, pmapStore, outDir):
-#     '''
-#     Initialize the process of the current pool worker with the variables
-#     commonly used across the different workers.
-#     '''
-#     global dict_var
-#     dict_var = {'fun4Dout': shared4Dout,
-#                 'bold_ctype': bold_ctype,
-#                 'boldReshape': reShape,
-#                 'nb_batch': nb_of_batchs,
-#                 'bold': sharedBold,
-#                 'prior_type': prior,
-#                 'voxel_ind': indvox_shared,
-#                 'pmapStore': pmapStore,
-#                 'outDir': outDir}
-
-
-# def Voxelwise_functionnectome(batch_num):
-#     '''
-#     Computation of the voxelwise functionnectome. Used in a pool of workers for
-#     multiprocessing.
-#     Parameters shared between the processes are defined grobaly with the
-#     initiator function "init_worker_voxelwise".
-#     They are stored in the "dict_var" dictionary (as a gobal variable for the
-#     new processes spawned for the multiprocessing).
-
-#     Parameters
-#     ----------
-#     batch_num : int
-#         Number of the current batch being processed.
-
-#     Returns
-#     -------
-#     None. The results are in shared memory (in "fun_4D_shared" in the main process)
-
-#     '''
-#     startTime = time.time()
-#     nbTR = dict_var['boldReshape'][0]  # Number of volumes (TR) in the 4D data
-
-#     # Loading the 4D output data from shared memory and selecting the part to
-#     # fill in the current process (should be empty)
-#     shared4Dout_np = np.frombuffer(dict_var['fun4Dout'], dict_var['bold_ctype']).reshape(dict_var['boldReshape'])
-#     split_shared4Dout_np = np.array_split(shared4Dout_np, dict_var['nb_batch'], 0)
-#     batch_4D_out = split_shared4Dout_np[batch_num]
-
-#     # Loading the input 2D array (temporal x flattened spatial) from shared memory
-#     shared_2D_bold_np = np.frombuffer(dict_var['bold'], dict_var['bold_ctype']).reshape((nbTR, -1))
-#     split_shared_2D_bold_np = np.array_split(shared_2D_bold_np, dict_var['nb_batch'], 0)
-#     batch_bold = split_shared_2D_bold_np[batch_num].T  # put back the time dim at the end
-#     nbTRbatch = batch_bold.shape[-1]
-
-#     # Load the voxels' index (for the results to go back from 2D to 4D)
-#     shared_vox_ind_np = np.frombuffer(dict_var['voxel_ind'], 'i').reshape((-1, 3))
-
-#     logFile = os.path.join(dict_var['outDir'], f'log_{batch_num}.txt')
-
-#     if dict_var['prior_type'] == 'nii':
-#         for ii, indvox in enumerate(shared_vox_ind_np):
-#             if ii % 100 == 0:  # Check the progress every 100 steps
-#                 ctime = time.time()-startTime
-#                 logtxt = f'Voxel {ii} in {len(shared_vox_ind_np)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
-#                 with open(logFile, "a") as log:
-#                     log.write(logtxt)
-#             # Load the probability map of the current voxel, combine it with the functional signal,
-#             # and add it to the results
-#             try:
-#                 mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'
-#                 vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
-#             except FileNotFoundError:
-#                 mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii'
-#                 vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
-#             try:
-#                 vox_pmap = vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
-#             except ValueError:
-#                 vox_pmap = vox_pmap_img.get_fdata().astype(vox_pmap_img.get_data_dtype())
-#             batch_4D_out += np.expand_dims(vox_pmap, 0)*batch_bold[ii].reshape((nbTRbatch, 1, 1, 1))
-
-#     elif dict_var['prior_type'] == 'h5':
-#         with h5py.File(dict_var['pmapStore'], "r") as h5fout:
-#             for ii, indvox in enumerate(shared_vox_ind_np):
-#                 if ii % 100 == 0:  # Check the progress every 100 steps
-#                     ctime = time.time()-startTime
-#                     logtxt = f'Voxel {ii} in {len(shared_vox_ind_np)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
-#                     with open(logFile, "a") as log:
-#                         log.write(logtxt)
-#                 # Load the probability map of the current voxel, combine it with the functional signal,
-#                 # and add it to the results
-#                 vox_pmap = h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][:]
-#                 batch_4D_out += np.expand_dims(vox_pmap, 0)*batch_bold[ii].reshape((nbTRbatch, 1, 1, 1))
-
-
-def init_worker_voxelwise2(shared4Dout, bold_ctype, reShape, nb_of_batchs,
-                          sharedBold, prior, indvox_shared, gm_mask, pmapStore, outDir):
+def init_worker_voxelwise2(shared4Dout, reShape, nb_of_batchs,
+                           sharedBold, prior, indvox_shared, gm_mask, pmapStore, outDir):
     '''
     Initialize the process of the current pool worker with the variables
     commonly used across the different workers.
     '''
     global dict_var
     dict_var = {'fun4Dout': shared4Dout,
-                'bold_ctype': bold_ctype,
                 'boldReshape': reShape,
                 'nb_batch': nb_of_batchs,
                 'bold': sharedBold,
@@ -536,12 +439,14 @@ def Voxelwise_functionnectome2(batch_num):
     None. The results are in shared memory (in "fun_4D_shared" in the main process)
 
     '''
+    # os.sched_setaffinity(0, {batch_num})
     startTime = time.time()
-    nbTR = dict_var['boldReshape'][0]  # Number of volumes (TR) in the 4D data
+    # nbTR = dict_var['boldReshape'][0]  # Number of volumes (TR) in the 4D data
+    nbTR = dict_var['boldReshape'][-1]  # Number of volumes (TR) in the 4D data
 
     # Loading the 4D output data from shared memory and selecting the part to
     # fill in the current process (should be empty)
-    shared4Dout_np = np.frombuffer(dict_var['fun4Dout'], dict_var['bold_ctype']).reshape(dict_var['boldReshape'])
+    shared4Dout_np = np.frombuffer(dict_var['fun4Dout'], 'f').reshape(dict_var['boldReshape'])
 
     # Load the voxels' index of the template and select the vexels for the process
     shared_vox_ind_np = np.frombuffer(dict_var['voxel_ind'], 'i').reshape((-1, 3))
@@ -550,21 +455,20 @@ def Voxelwise_functionnectome2(batch_num):
     mask = dict_var['GM mask']  # MAkes a copy for each process. But it's only a boolean array
 
     # Loading the input 2D array (temporal x flattened spatial) from shared memory
-    shared_2D_bold_np = np.frombuffer(dict_var['bold'], dict_var['bold_ctype']).reshape((nbTR, -1))
+    shared_2D_bold_np = np.frombuffer(dict_var['bold'], 'f').reshape((nbTR, -1))
 
     logFile = os.path.join(dict_var['outDir'], f'log_{batch_num}.txt')
 
     if dict_var['prior_type'] == 'h5':
-        for ii, indvox in enumerate(batch_vox):
-            if ii % 10 == 0:  # Check the progress every 10 steps
-                ctime = time.time()-startTime
-                logtxt = f'Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
-                with open(logFile, "a") as log:
-                    log.write(logtxt)
-            with h5py.File(dict_var['pmapStore'], "r") as h5fout:
+        with h5py.File(dict_var['pmapStore'], "r") as h5fout:
+            for ii, indvox in enumerate(batch_vox):
+                if ii % 100 == 0:  # Check the progress every 10 steps
+                    ctime = time.time()-startTime
+                    logtxt = f'Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
+                    with open(logFile, "a") as log:
+                        log.write(logtxt)
                 vox_pmap = h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][:]
-                vox_pmap = vox_pmap[mask]
-                shared4Dout_np[:, indvox[0], indvox[1], indvox[2]] = np.dot(shared_2D_bold_np, vox_pmap)
+                shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, vox_pmap[mask])
     elif dict_var['prior_type'] == 'nii':
         for ii, indvox in enumerate(batch_vox):
             if ii % 100 == 0:  # Check the progress every 100 steps
@@ -580,11 +484,7 @@ def Voxelwise_functionnectome2(batch_num):
             except FileNotFoundError:
                 mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii'
                 vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
-            try:
-                vox_pmap = vox_pmap_img.get_fdata(dtype=vox_pmap_img.get_data_dtype())
-            except ValueError:
-                vox_pmap = vox_pmap_img.get_fdata().astype(vox_pmap_img.get_data_dtype())
-            shared4Dout_np[:, indvox[0], indvox[1], indvox[2]] = np.dot(shared_2D_bold_np, vox_pmap[mask])
+            vox_pmap = vox_pmap_img.get_fdata(dtype='float32')
 
 
 # %%
@@ -997,16 +897,11 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                                    'and relaunch the analysis.')
                 print(alreadyThereMsg)
                 sum_pmap_img = nib.load(sumpath)
-                try:
-                    sum_pmap_all = sum_pmap_img.get_fdata(dtype=sum_pmap_img.get_data_dtype())
-                except ValueError:
-                    sum_pmap_all = sum_pmap_img.get_fdata().astype(sum_pmap_img.get_data_dtype())
+                sum_pmap_all = sum_pmap_img.get_fdata(dtype='float32')
 
             # Loading the 4D BOLD file
             print('Loading 4D data (as float32).')
             bold_img = nib.load(boldf)
-            # bold_dtype = bold_img.get_data_dtype().name
-            bold_dtype = "float32"  # Forcing float32 for better efficiency
             bold_header = bold_img.header
             bold_affine = bold_img.affine
             bold_shape = bold_img.shape
@@ -1035,7 +930,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     print("\nInput 4D volume's orientation:")
                     print(bold_affine.astype(int))
                     raise ValueError('Wrong data orientation, or not in MNI152 space.')
-            bold_vol = bold_img.get_fdata(dtype=bold_dtype)
+            bold_vol = bold_img.get_fdata(dtype='float32')
             if flipLR:
                 bold_vol = np.flip(bold_vol, 0)
 
@@ -1070,29 +965,19 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             bold_vol = bold_img = None
 
             # Launching parallel processing for the functionnectome computation proper
-            if np.dtype(bold_dtype) is np.dtype('float32'):
-                bold_ctype = 'f'
-            elif np.dtype(bold_dtype) is np.dtype('float64'):
-                bold_ctype = 'd'
-            else:
-                badTypeMsg = (f"Bold data-type ({bold_dtype}) is not float32 (a.k.a 'float') "
-                              "nor float64 (a.k.a 'double'), which is not normal and is not "
-                              "currently supported")
-                warnings.warn(badTypeMsg)
-                break
 
             # Create a shared RawArray containing the data from the BOLD regionwise DataFrame
             boldDFshape = regions_BOLD_median.shape
-            bold_DF_shared = multiprocessing.RawArray(bold_ctype, int(np.prod(boldDFshape)))
+            bold_DF_shared = multiprocessing.RawArray('f', int(np.prod(boldDFshape)))
             # Manipulate the RawArray as a numpy array
-            bold_DF_shared_np = np.frombuffer(bold_DF_shared, bold_ctype).reshape(boldDFshape)
+            bold_DF_shared_np = np.frombuffer(bold_DF_shared, 'f').reshape(boldDFshape)
             np.copyto(bold_DF_shared_np, regions_BOLD_median.values)  # Filling the RawArray
             regions_BOLD_median = None
 
             # Create a shared RawArray that will contain the results
             # Puting the time dim first (for contiguous data array, necessary to avoid copy with shared memory access)
             bold_reshape = (bold_shape[-1], *bold_shape[:-1])
-            fun_4D_shared = multiprocessing.RawArray(bold_ctype, int(np.prod(bold_reshape)))
+            fun_4D_shared = multiprocessing.RawArray('f', int(np.prod(bold_reshape)))
 
             with multiprocessing.Pool(processes=nb_of_batchs,
                                       initializer=init_worker_regionwise,
@@ -1100,7 +985,6 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                                                 bold_DF_shared,
                                                 bold_reshape,
                                                 boldDFshape,
-                                                bold_ctype,
                                                 listRegions,
                                                 nb_of_batchs,
                                                 pmap_loc,
@@ -1113,13 +997,14 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                 while not poolCheck.ready():
                     percent = LogDiplayPercent(results_dir, percent)
                     time.sleep(1)
+                poolCheck.get()
                 sys.stdout.write("\rProgress of the current process: 100%  Completed           \n")
                 sys.stdout.flush()
                 logfiles = glob.glob(os.path.join(results_dir, 'log_*.txt'))
                 for logf in logfiles:
                     os.remove(logf)
             print('Multiprocessing done. Application of the proportionality and saving results.')
-            sum_pmap4D_all = np.frombuffer(fun_4D_shared, bold_ctype).reshape(bold_reshape)
+            sum_pmap4D_all = np.frombuffer(fun_4D_shared, 'f').reshape(bold_reshape)
             # Applying proportionality
             sum_pmap4D_all = np.divide(sum_pmap4D_all,
                                        np.expand_dims(sum_pmap_all, 0),
@@ -1211,8 +1096,6 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             bold_header = bold_img.header
             bold_affine = bold_img.affine
             bold_shape = bold_img.shape
-            # bold_dtype = bold_img.get_data_dtype().name
-            bold_dtype = "float32"  # Forcing float32 for better efficiency
             # Checking if the data has proper dimension and orientation
             if bold_img.ndim == 3:
                 raise ValueError('The input NIfTI volume is 3D. The Functionnectome only accepts 4D volumes.')
@@ -1237,19 +1120,9 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     print("Input 4D volume's orientation:")
                     print(bold_affine.astype(int))
                     raise ValueError('Wrong data orientation, or not in MNI152 space.')
-            bold_vol = bold_img.get_fdata(dtype=bold_dtype)
+            bold_vol = bold_img.get_fdata(dtype='float32')
             if flipLR:
                 bold_vol = np.flip(bold_vol, 0)
-            if np.dtype(bold_dtype) is np.dtype('float32'):
-                bold_ctype = 'f'
-            elif np.dtype(bold_dtype) is np.dtype('float64'):
-                bold_ctype = 'd'
-            else:
-                badTypeMsg = (f"Bold data-type ({bold_dtype}) is not float32 (a.k.a 'float') "
-                              "nor float64 (a.k.a 'double'), which is not normal and is not "
-                              "currently supported")
-                warnings.warn(badTypeMsg)
-                break
 
             # Creating shared memory variables accessed by the parrallel processes
             bold_shape = bold_vol.shape
@@ -1257,9 +1130,9 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             bold_vol_2D = bold_vol[ind_mask1]
             # Release the RAM
             bold_vol = bold_img = ind_mask1 = None
-            bold_2D_shared = multiprocessing.RawArray(bold_ctype, int(np.prod(bold_vol_2D.shape)))
+            bold_2D_shared = multiprocessing.RawArray('f', int(np.prod(bold_vol_2D.shape)))
             # Manipulate the RawArray as a numpy array
-            bold_2D_shared_np = np.frombuffer(bold_2D_shared, bold_ctype).reshape(bold_vol_2D.T.shape)
+            bold_2D_shared_np = np.frombuffer(bold_2D_shared, 'f').reshape(bold_vol_2D.T.shape)
             np.copyto(bold_2D_shared_np, bold_vol_2D.T)  # Filling the RawArray
             bold_vol_2D = None
 
@@ -1277,27 +1150,14 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             ind_template = None
 
             # Create a shared RawArray that will contain the results
-            bold_reshape = (bold_shape[-1], )+(bold_shape[:-1])
-            fun_4D_shared = multiprocessing.RawArray(bold_ctype, int(np.prod(bold_reshape)))
+            # bold_reshape = (bold_shape[-1], )+(bold_shape[:-1])
+            bold_reshape = bold_shape
+            fun_4D_shared = multiprocessing.RawArray('f', int(np.prod(bold_reshape)))
 
-            # with multiprocessing.Pool(processes=nb_of_batchs,
-            #                           initializer=init_worker_voxelwise,
-            #                           initargs=(fun_4D_shared,
-            #                                     bold_ctype,
-            #                                     bold_reshape,
-            #                                     nb_of_batchs,
-            #                                     bold_2D_shared,
-            #                                     prior_type,
-            #                                     ind_mask_shared,
-            #                                     pmap_loc,
-            #                                     results_dir)
-            #                           ) as pool:
-            #     poolCheck = pool.map_async(Voxelwise_functionnectome, range(nb_of_batchs))
             print("New algo!")
             with multiprocessing.Pool(processes=nb_of_batchs,
                                       initializer=init_worker_voxelwise2,
                                       initargs=(fun_4D_shared,
-                                                bold_ctype,
                                                 bold_reshape,
                                                 nb_of_batchs,
                                                 bold_2D_shared,
@@ -1313,6 +1173,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                 while not poolCheck.ready():
                     percent = LogDiplayPercent(results_dir, percent)
                     time.sleep(1)
+                poolCheck.get()
                 sys.stdout.write("\rProgress of the current process: 100%  Completed           \n")
                 sys.stdout.flush()
                 logfiles = glob.glob(os.path.join(results_dir, 'log_*.txt'))
@@ -1321,13 +1182,19 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             bold_2D_shared = bold_2D_shared_np = None
 
             print('Multiprocessing done. Application of the proportionality and saving results.')
-            sum_pmap4D_all = np.frombuffer(fun_4D_shared, bold_ctype).reshape(bold_reshape)
+            sum_pmap4D_all = np.frombuffer(fun_4D_shared, 'f').reshape(bold_reshape)
             # Applying proportionality
+            # sum_pmap4D_all = np.divide(sum_pmap4D_all,
+            #                            np.expand_dims(sum_pmap_all, 0),
+            #                            out=sum_pmap4D_all,
+            #                            where=np.expand_dims(sum_pmap_all, 0) != 0)
+            # sum_pmap4D_all = np.moveaxis(sum_pmap4D_all, 0, -1)
+
+            sum_pmap_all = np.expand_dims(sum_pmap_all, -1)
             sum_pmap4D_all = np.divide(sum_pmap4D_all,
-                                       np.expand_dims(sum_pmap_all, 0),
+                                       sum_pmap_all,
                                        out=sum_pmap4D_all,
-                                       where=np.expand_dims(sum_pmap_all, 0) != 0)
-            sum_pmap4D_all = np.moveaxis(sum_pmap4D_all, 0, -1)
+                                       where=sum_pmap_all != 0)
             # Masking out the stray voxels out of the brain
             if maskOutput:
                 sum_pmap4D_all *= np.expand_dims(template_vol, -1)

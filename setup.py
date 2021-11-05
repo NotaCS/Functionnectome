@@ -29,7 +29,7 @@ setuptools.setup(
     python_requires='>=3.6',
     entry_points={'console_scripts': ['FunctionnectomeGUI=Functionnectome.functionnectome_GUI:run_gui',
                                       'Functionnectome=Functionnectome.functionnectome:main',
-                                      'MakeH5=Functionnectome.makeHDF5priors:main'],
+                                      'MakeH5=Functionnectome.makeHDF5prior:main'],
                   },
     install_requires=['numpy',
                       'nibabel',

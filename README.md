@@ -4,6 +4,9 @@ fMRI 4D volume using their probabilistic structural relationship given by anatom
 
 To launch the `Functionnectome`, if it was properly installed with the `pip` command (see **Installation** below), open a terminal and run the command `FunctionnectomeGUI` to use the GUI, or `Functionnectome <setting_file.fcntm>` if you already have a settings file ready.
 
+# WhiteRest
+WhiteRest is a tool to explore the potential impact of white matter lesions on resting-state networks. It is installed along the Functionnectome and is based on the WhiteRest atlas. More information is available in the WhiteRest manual.
+
 # Documentation
 The complete manual is available of the project's GitHub page (https://github.com/NotaCS/Functionnectome) under the name The_Functionnectome_Userguide.pdf 
 

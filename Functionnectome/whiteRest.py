@@ -1,33 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+WhiteRest module
 
-Explore the white matter of RSNs, and determine the potential impact of white matter lesions to RSNs
+Explore the white matter of RSNs from the WhiteRest Atlas, and determine
+the potential impact of white matter lesions on RSNs.
 
-Options:
-    - Print or no print pictures:
-        - pie chart
-        - Brain cross-section  # TODO maybe
-        - RSN 3D picture  # TODO maybe
-    - Witout z-score threshold:
-        - Output presence raw value / proportion
-        - What threshold for the outpout
-    - With z-score threshold
-        - Output presence raw value / prortion
-        - Output binarised share
-        - Output proprotion of the total RSN map?
-    - Save output in txt file
+The minimal inputs should be (in that order):
+    - The ROI you wish to explore (as a nifti file in the MNI space)
+    - The white matter maps of WhiteRest atlas (input as one 4D nifti file)
+    - The RSN labels information from the atlas (input as a .txt file)
 
-TODO Add option to input multiple ROI (4D vol)
+The atlas and label files can be downloaded from:
+    https://www.dropbox.com/s/mo4zs159rqhqopv/WhiteRest.zip?dl=0
+or, if there is a problem with the link, uppon request to:
+    victor.nozais@gmail.com
 
+WhiteRest will output a table with the Presence score for each RSN in the ROI,
+both in % and raw score, as well as a few other metrics.
+If no output file is given (with the "-o" option), the table will be printed in
+the terminal. Otherwise, it will be saved as a text file, which can be imported
+to a spreadsheet software (such as Excel) for further processing.
 
-    ROI_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
-              'apply_funtome/ROI_centrum_semiovale_atlasBCBLAB_thr0p5_2mm.nii.gz')
-    atlas_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
-                'apply_funtome/group_zmaps_best_masked.nii.gz')
-    RSNlabels_f = ('/beegfs_data/scratch/nozais-functionnectome/colab_marc/analyse_300_sujets/MICCA_HCP/'
-                    'labels_31RSN.csv')
-    zThresh = 0
+The software also gives the possibility to save a pie-chart summary of the results.
 
 """
 
@@ -37,6 +32,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import argparse
 import os
+
+
+pd.set_option("display.max_rows", None, "display.max_columns", None)
 
 # %%
 
@@ -62,10 +60,10 @@ def _build_arg_parser():
                    action='store_true',
                    help='Binarize the maps after thresholding.')
     p.add_argument('-p', '--out_pie',
-                   help='Path to save the a pie-chart figure of the results (.png).')
+                   help='Path to save a pie-chart figure of the results (.png).')
     p.add_argument('-pt', '--thr_low_pie',
-                   default=3,
-                   help='Presence %% under which the RSNs are grouped on the pie-chart.')
+                   default=5,
+                   help='Presence %% under which the RSNs are grouped on the pie-chart (default <5%%).')
 
     return p
 
@@ -118,11 +116,24 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
     A Pandas Dataframe with the presence score of each involved RSN
 
     '''
-    ROI_im = nib.load(ROI_f)  # TODO Add a resampling to MNI if necessary
+    ROI_im = nib.load(ROI_f)
     ROI = ROI_im.get_fdata().astype(bool)
+    ROI_affine = ROI_im.affine.copy()
     atlas_im = nib.load(atlas_f)
     atlas = atlas_im.get_fdata()
     RSNlabels = pd.read_csv(RSNlabels_f, sep='\t')
+
+    if not (ROI_im.affine == atlas_im.affine).all():
+        ROI_affine[0] = -ROI_affine[0]
+        if (ROI_affine ==  atlas_im.affine).all():
+            ROI = np.flip(ROI)
+        else:
+            print("Orientation (affine) of the input ROI volume not recognized. "
+                  "Expected orientation matrix:")
+            print(atlas_im.affine)
+            print('Affine of the input ROI:')
+            print(ROI_im.affine)
+            raise ValueError('Wrong data orientation, or not in MNI152 space.')
 
     if len(RSNlabels) != atlas.shape[3]:
         raise IndexError('Number of RSNs in the atlas and the label file not the same')
@@ -161,8 +172,26 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
     return resPresence
 
 
+def make_fun_autopct(res):
+    def fun_autopct(pct):
+        res_array = res[['Presence (%)', 'Coverage (%)']].values
+        ind_pct = (np.abs(res_array[:,0] - pct)).argmin()  # Ugly but should work (in most cases)
+        pct_cov = res_array[ind_pct,1]
+        return "{:.1f}%\n({:.1f}%)".format(pct, pct_cov)
+    return fun_autopct
+
+def make_fun_autopct_withThr(res):
+    def fun_autopct(pct):
+        res_array = res[['Presence (%)', 'Coverage (%)']].values
+        ind_pct = (np.abs(res_array[:,0] - pct)).argmin()  # Ugly but should work (in most cases)
+        if ind_pct == 0:
+            return "{:.1f}%".format(pct)
+        else:
+            pct_cov = res_array[ind_pct,1]
+            return "{:.1f}%\n({:.1f}%)".format(pct, pct_cov)
+    return fun_autopct
+
 def plot_pie(res, outFile, thresh_percent):
-    res = res.sort_values('Presence (%)').reset_index()
     lowrsn = (res['Presence (%)'] < thresh_percent)
     lowrsnNb = lowrsn.sum()
     res_thr = res.copy()
@@ -171,16 +200,20 @@ def plot_pie(res, outFile, thresh_percent):
         for i in range(lowrsnNb):
             sumLow += res.loc[i, 'Presence (raw)']
             res_thr = res_thr.drop(i)
-        res_thr = pd.concat([pd.DataFrame({'RSN label': [f'< 5% ({lowrsnNb})'], 'Presence (raw)': [sumLow]}), res_thr],
+        perc_sumLow = 100*sumLow/res['Presence (raw)'].sum()
+        res_thr = pd.concat([pd.DataFrame({'RSN number': [f'< {thresh_percent}% ({lowrsnNb} RSN)'],
+                                           'Presence (raw)': [sumLow],
+                                           'Presence (%)': perc_sumLow}), res_thr],
                             ignore_index=True)
         cmap = plt.get_cmap('Spectral')
         colors = [cmap(i) for i in np.linspace(0, 1, len(res_thr))]
         expl = [0 for i in range(len(res_thr))]  # To put the low value appart in the pie-chart
         expl[0] = 0.1
-        plt.figure(figsize=(8, 8), dpi=80)
+        plt.figure(figsize=(10, 8), dpi=120)
         patches, texts, autotexts = plt.pie(res_thr['Presence (raw)'],
                                             labels=res_thr['RSN number'],
-                                            autopct='%1.1f%%',
+                                            textprops={'fontsize': 12, 'font':'Arial'},
+                                            autopct=make_fun_autopct_withThr(res_thr),  # '%1.1f%%',
                                             shadow=False,
                                             colors=colors,
                                             explode=expl,
@@ -191,9 +224,14 @@ def plot_pie(res, outFile, thresh_percent):
     else:
         cmap = plt.get_cmap('Spectral')
         colors = [cmap(i) for i in np.linspace(0, 1, len(res))]
-        plt.figure(figsize=(8, 8), dpi=80)
-        patches, texts, autotexts = plt.pie(res['Presence (raw)'], labels=res['RSN number'],
-                                            autopct='%1.1f%%', shadow=False, colors=colors, pctdistance=0.8)
+        plt.figure(figsize=(10, 8), dpi=120)
+        patches, texts, autotexts = plt.pie(res['Presence (raw)'],
+                                            labels=res['RSN number'],
+                                            textprops={'fontsize': 12, 'font':'Arial'},
+                                            autopct=make_fun_autopct(res),
+                                            shadow=False,
+                                            colors=colors,
+                                            pctdistance=0.8)
         for autotxt in autotexts:
             autotxt.set_fontsize(15)
         plt.savefig(outFile)
@@ -219,6 +257,7 @@ def main():
         checkOutFile(parser, args.out_pie)
 
     res = computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh, binarize)
+    res = res.sort_values('Presence (%)').reset_index()
 
     if args.out_table:
         res.to_csv(args.out_table, sep='\t')

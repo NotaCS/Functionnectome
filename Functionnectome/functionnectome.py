@@ -402,8 +402,8 @@ def Regionwise_functionnectome(batch_num):
                 current_split_out += np.expand_dims(region_map, 0) * current_split_in[reg].values.reshape(current_shape)
 
 
-def init_worker_voxelwise2(shared4Dout, reShape, nb_of_batchs,
-                           sharedBold, prior, indvox_shared, gm_mask, pmapStore, outDir):
+def init_worker_voxelwise2(shared4Dout, reShape, nb_of_batchs, sharedBold, prior,
+                           indvox_shared, gm_mask, pmapStore, outDir, preComput):
     '''
     Initialize the process of the current pool worker with the variables
     commonly used across the different workers.
@@ -417,7 +417,8 @@ def init_worker_voxelwise2(shared4Dout, reShape, nb_of_batchs,
                 'voxel_ind': indvox_shared,
                 'GM mask': gm_mask,
                 'pmapStore': pmapStore,
-                'outDir': outDir}
+                'outDir': outDir,
+                'preComput': preComput}
 
 
 def Voxelwise_functionnectome2(batch_num):
@@ -459,32 +460,68 @@ def Voxelwise_functionnectome2(batch_num):
 
     logFile = os.path.join(dict_var['outDir'], f'log_{batch_num}.txt')
 
-    if dict_var['prior_type'] == 'h5':
-        with h5py.File(dict_var['pmapStore'], "r") as h5fout:
+    if dict_var['preComput']:  # Sum of pmaps was done previously in a different step
+        if dict_var['prior_type'] == 'h5':
+            with h5py.File(dict_var['pmapStore'], "r") as h5fout:
+                for ii, indvox in enumerate(batch_vox):
+                    if ii % 100 == 0:  # Check the progress every 10 steps
+                        ctime = time.time()-startTime
+                        logtxt = f'Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
+                        with open(logFile, "a") as log:
+                            log.write(logtxt)
+                    vox_pmap = h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][:]
+                    shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, vox_pmap[mask])
+        elif dict_var['prior_type'] == 'nii':
             for ii, indvox in enumerate(batch_vox):
-                if ii % 100 == 0:  # Check the progress every 10 steps
+                if ii % 100 == 0:  # Check the progress every 100 steps
                     ctime = time.time()-startTime
                     logtxt = f'Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
                     with open(logFile, "a") as log:
                         log.write(logtxt)
-                vox_pmap = h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][:]
-                shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, vox_pmap[mask])
-    elif dict_var['prior_type'] == 'nii':
-        for ii, indvox in enumerate(batch_vox):
-            if ii % 100 == 0:  # Check the progress every 100 steps
-                ctime = time.time()-startTime
-                logtxt = f'Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
-                with open(logFile, "a") as log:
-                    log.write(logtxt)
-            # Load the probability map of the current voxel, combine it with the functional signal,
-            # and add it to the results
-            try:
-                mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'
-                vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
-            except FileNotFoundError:
-                mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii'
-                vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
-            vox_pmap = vox_pmap_img.get_fdata(dtype='float32')
+                # Load the probability map of the current voxel, combine it with the functional signal,
+                # and add it to the results
+                try:
+                    mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'
+                    vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
+                except FileNotFoundError:
+                    mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii'
+                    vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
+                vox_pmap = vox_pmap_img.get_fdata(dtype='float32')
+                selected_p = vox_pmap[mask]
+                sum_p = selected_p.sum()  # For the normalizing step
+                shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, selected_p)/sum_p
+    else:  # sum of pmaps was not done beforehand, so it will be done here and directly applied
+        if dict_var['prior_type'] == 'h5':
+            with h5py.File(dict_var['pmapStore'], "r") as h5fout:
+                for ii, indvox in enumerate(batch_vox):
+                    if ii % 100 == 0:  # Check the progress every 10 steps
+                        ctime = time.time()-startTime
+                        logtxt = f'Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
+                        with open(logFile, "a") as log:
+                            log.write(logtxt)
+                    vox_pmap = h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][:]
+                    selected_p = vox_pmap[mask]
+                    sum_p = selected_p.sum()  # For the normalizing step
+                    shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, selected_p)/sum_p
+        elif dict_var['prior_type'] == 'nii':
+            for ii, indvox in enumerate(batch_vox):
+                if ii % 100 == 0:  # Check the progress every 100 steps
+                    ctime = time.time()-startTime
+                    logtxt = f'Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n'
+                    with open(logFile, "a") as log:
+                        log.write(logtxt)
+                # Load the probability map of the current voxel, combine it with the functional signal,
+                # and add it to the results
+                try:
+                    mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz'
+                    vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
+                except FileNotFoundError:
+                    mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii'
+                    vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
+                vox_pmap = vox_pmap_img.get_fdata(dtype='float32')
+                selected_p = vox_pmap[mask]
+                sum_p = selected_p.sum()  # For the normalizing step
+                shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, selected_p)/sum_p
 
 
 # %%
@@ -1047,12 +1084,13 @@ def run_functionnectome(settingFilePath, from_GUI=False):
 
             # Summing all the proba maps, for later "normalization"
             if mask_nb == 1 and subNb > 1:
+                precomp = True  # Stores wether there is a precomputing of the sum of probamaps or not
                 firstSubRes = os.path.join(results_dir_root, anatype + 'wise_analysis', IDs[0])
                 sumpath = os.path.join(firstSubRes, 'sum_probaMaps_voxel.nii.gz')
             else:
-                sumpath = os.path.join(results_dir, 'sum_probaMaps_voxel.nii.gz')
+                precomp = False
 
-            if not os.path.exists(sumpath):
+            if precomp and not os.path.exists(sumpath):
                 print('Launching parallel computation: Sum of Probability maps')
                 with multiprocessing.Pool(processes=nb_of_batchs,
                                           initializer=init_worker_sumPmaps,
@@ -1077,7 +1115,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                 out_batch_sum = None  # Release the RAM
                 sum_pmap_img = nib.Nifti1Image(sum_pmap_all, affine3D, header3D)
                 nib.save(sum_pmap_img, sumpath)
-            else:
+            elif precomp and  os.path.exists(sumpath):
                 alreadyThereMsg = ('Sum of probability maps already computed previously. Reloading it.\n'
                                    'WARNING: If you changed the mask for the analysis, '
                                    'stop the process, delete the "sum_probaMaps_voxel.nii.gz" file '
@@ -1164,7 +1202,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                                                 ind_template_shared,
                                                 voxel_mask,
                                                 pmap_loc,
-                                                results_dir)
+                                                results_dir,
+                                                precomp)
                                       ) as pool:
                 poolCheck = pool.map_async(Voxelwise_functionnectome2, range(nb_of_batchs))
                 percent = None  # to keep track of the preivous
@@ -1180,20 +1219,23 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     os.remove(logf)
             bold_2D_shared = bold_2D_shared_np = None
 
-            print('Multiprocessing done. Application of the proportionality and saving results.')
             sum_pmap4D_all = np.frombuffer(fun_4D_shared, 'f').reshape(bold_reshape)
-            # Applying proportionality
-            # sum_pmap4D_all = np.divide(sum_pmap4D_all,
-            #                            np.expand_dims(sum_pmap_all, 0),
-            #                            out=sum_pmap4D_all,
-            #                            where=np.expand_dims(sum_pmap_all, 0) != 0)
-            # sum_pmap4D_all = np.moveaxis(sum_pmap4D_all, 0, -1)
-
-            sum_pmap_all = np.expand_dims(sum_pmap_all, -1)
-            sum_pmap4D_all = np.divide(sum_pmap4D_all,
-                                       sum_pmap_all,
-                                       out=sum_pmap4D_all,
-                                       where=sum_pmap_all != 0)
+            if precomp:
+                print('Multiprocessing done. Application of the proportionality and saving results.')
+                # Applying proportionality
+                # sum_pmap4D_all = np.divide(sum_pmap4D_all,
+                #                            np.expand_dims(sum_pmap_all, 0),
+                #                            out=sum_pmap4D_all,
+                #                            where=np.expand_dims(sum_pmap_all, 0) != 0)
+                # sum_pmap4D_all = np.moveaxis(sum_pmap4D_all, 0, -1)
+    
+                sum_pmap_all = np.expand_dims(sum_pmap_all, -1)
+                sum_pmap4D_all = np.divide(sum_pmap4D_all,
+                                           sum_pmap_all,
+                                           out=sum_pmap4D_all,
+                                           where=sum_pmap_all != 0)
+            else:
+                print('Multiprocessing done. Saving results.')
             # Masking out the stray voxels out of the brain
             if maskOutput:
                 sum_pmap4D_all *= np.expand_dims(template_vol, -1)

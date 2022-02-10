@@ -487,9 +487,7 @@ def Voxelwise_functionnectome2(batch_num):
                     mapf = f'probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii'
                     vox_pmap_img = nib.load(os.path.join(dict_var['pmapStore'], mapf))
                 vox_pmap = vox_pmap_img.get_fdata(dtype='float32')
-                selected_p = vox_pmap[mask]
-                sum_p = selected_p.sum()  # For the normalizing step
-                shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, selected_p)/sum_p
+                shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, vox_pmap[mask])
     else:  # sum of pmaps was not done beforehand, so it will be done here and directly applied
         if dict_var['prior_type'] == 'h5':
             with h5py.File(dict_var['pmapStore'], "r") as h5fout:
@@ -502,7 +500,10 @@ def Voxelwise_functionnectome2(batch_num):
                     vox_pmap = h5fout['tract_voxel'][f'{indvox[0]}_{indvox[1]}_{indvox[2]}_vox'][:]
                     selected_p = vox_pmap[mask]
                     sum_p = selected_p.sum()  # For the normalizing step
-                    shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, selected_p)/sum_p
+                    if sum_p:
+                        shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, selected_p)/sum_p
+                    else:
+                        shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.zeros(nbTR, dtype='f')
         elif dict_var['prior_type'] == 'nii':
             for ii, indvox in enumerate(batch_vox):
                 if ii % 100 == 0:  # Check the progress every 100 steps
@@ -521,8 +522,10 @@ def Voxelwise_functionnectome2(batch_num):
                 vox_pmap = vox_pmap_img.get_fdata(dtype='float32')
                 selected_p = vox_pmap[mask]
                 sum_p = selected_p.sum()  # For the normalizing step
-                shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, selected_p)/sum_p
-
+                if sum_p:
+                    shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(shared_2D_bold_np, selected_p)/sum_p
+                else:
+                    shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.zeros(nbTR, dtype='f')
 
 # %%
 def run_functionnectome(settingFilePath, from_GUI=False):
@@ -1256,8 +1259,20 @@ def main():
         raise Exception("Must be using Python 3. And probably Python 3.6 (or superior).")
     if sys.version_info[1] < 6:
         warnings.warn("Python version < 3.6 |nIt might not work. Consider updating.")
-    settingFilePath = sys.argv[1]
-    run_functionnectome(settingFilePath)
+    usageMsg = 'Usage: Functionnectome <settings_file.fcntm>'
+    if not len(sys.argv) == 2:
+        print('Wrong number of input arguments.')
+        print(usageMsg)
+    else:
+        settingFilePath = sys.argv[1]
+        if not settingFilePath[-6:] == '.fcntm':
+            if settingFilePath in ['-h', '--help']:
+                print(usageMsg)
+            else:
+                print('Wrong settings file (extension is not ".fcntm").')
+                print(usageMsg)
+        else:
+            run_functionnectome(settingFilePath)
 
 
 if __name__ == '__main__':

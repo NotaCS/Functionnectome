@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# -*- Coding: utf-8 -*-
 """
 Created on Wed Jun 10 15:43:08 2020
 
@@ -44,6 +44,59 @@ import nibabel as nib
 from pathlib import Path
 import pandas as pd
 
+# %% Information about the priors, shared as gloaba variable. Update here.
+global PRIORS_H5, PRIORS_URL, PRIORS_ZIP  # Tuple with the available HDF5 priors labels
+
+PRIORS_INFO = (  # TODO : Fill the URL when available
+    ('V1.D.WB - Whole brain, Deterministic (legacy)',
+     "https://www.dropbox.com/s/22vix4krs2zgtnt/functionnectome_7TpriorsH5.zip?dl=1",
+     "functionnectome_7TpriorsH5.zip",
+     ),
+    # ('V2.D.WB - Whole brain, Deterministic',
+    #  "",
+    #  "",
+    #  ),
+    # ('V2.D.Asso - Association, Deterministic',
+    #  "",
+    #  "",
+    #  ),
+    # ('V2.D.Proj - Projection, Deterministic',
+    #  "",
+    #  "",
+    #  ),
+    # ('V2.D.Comm - Commissural, Deterministic',
+    #  "",
+    #  "",
+    #  ),
+    # ('V2.D.Cereb - Cerebellar, Deterministic',
+    #  "",
+    #  "",
+    #  ),
+    # ('V2.P.WB - Whole brain, Probabilistic',
+    #  "",
+    #  "",
+    #  ),
+    # ('V2.P.Asso - Association, Probabilistic',
+    #  "",
+    #  "",
+    #  ),
+    # ('V2.P.Proj - Projection, Probabilistic',
+    #  "",
+    #  "",
+    #  ),
+    # ('V2.P.Comm - Commissural, Probabilistic',
+    #  "",
+    #  "",
+    #  ),
+    # ('V2.P.Cereb - Cerebellar, Probabilistic',
+    #  "",
+    #  "",
+    #  ),
+)
+PRIORS_H5 = tuple(pinfo[0] for pinfo in PRIORS_INFO)
+PRIORS_URL = {pinfo[0]: pinfo[1] for pinfo in PRIORS_INFO}
+PRIORS_ZIP = {pinfo[0]: pinfo[2] for pinfo in PRIORS_INFO}
+
 
 # %%  Additionnal GUI and interactive functions
 def check_DLprogress(datasize, zipname):
@@ -61,11 +114,10 @@ def check_DLprogress(datasize, zipname):
         time.sleep(1)
 
 
-def Download_H5(prior_dirpath_h5):
-    dl_url = (
-        "https://www.dropbox.com/s/22vix4krs2zgtnt/functionnectome_7TpriorsH5.zip?dl=1"
-    )
-    zipname = os.path.join(prior_dirpath_h5, "functionnectome_7TpriorsH5.zip")
+def Download_H5(prior_dirpath_h5, priorsName):
+    dl_url = PRIORS_URL[priorsName]
+    fname = PRIORS_ZIP[priorsName]
+    zipname = os.path.join(prior_dirpath_h5, fname)
     print("Downloading the priors...")
     with urlopen(dl_url) as response, open(zipname, "wb") as out_file:
         datasize = int(response.getheader("content-length"))
@@ -85,6 +137,24 @@ def Download_H5(prior_dirpath_h5):
     print("Done")
 
 
+def DL_missingH5(dictPaths, currentH5, h5Dir):
+    ''' Download all h5 priors available but still missing in the json'''
+    missingH5 = (
+        PRIORS_URL.keys()
+        - dictPaths.keys()
+        - {currentH5}
+    )
+    for n, priorpath in enumerate(missingH5):
+        print(f"Downloading file {n + 1}/{len(missingH5)}")
+        Download_H5(h5Dir, priorpath)
+        missH5P = os.path.join(
+            h5Dir,
+            PRIORS_ZIP[priorpath].replace('.zip', '.h5')
+        )
+        if os.path.exists(missH5P):
+            dictPaths[priorpath] = missH5P
+
+
 class Ask_hdf5_path(tk.Tk):
     """
     Ask of the path to the priors in HDF5 file, or ask offer to download them
@@ -94,7 +164,7 @@ class Ask_hdf5_path(tk.Tk):
 
     """
 
-    def __init__(self):
+    def __init__(self, pName, dictH5):
         super().__init__()
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
@@ -106,6 +176,7 @@ class Ask_hdf5_path(tk.Tk):
         self.title("Acquisition of HDF5 file for priors")
         self.prior_path_h5 = ""  # Where the file path to the priors will be stored
         self.home = os.path.expanduser("~")
+        self.dictH5 = dictH5
         msg = (
             "No HDF5 priors file was found. If you already downloaded it, "
             "select select the file. Otherwise download it."
@@ -113,6 +184,7 @@ class Ask_hdf5_path(tk.Tk):
         self.lbl = tk.Label(self, text=msg)
         self.lbl.grid(column=0, row=0, columnspan=3)
         #
+        self.priorsName = pName
         self.btnDL = tk.Button(self, text="Download priors", command=self.Btn_DL_priors)
         self.btnDL.grid(column=0, row=1)
         #
@@ -125,16 +197,20 @@ class Ask_hdf5_path(tk.Tk):
         self.btnCancel.grid(column=2, row=1)
 
     def Btn_DL_priors(self):
+        self.DLall = tk.messagebox.askyesno('Download all priors?', 'Also download the full suit of priors?')
         prior_dirpath_h5 = filedialog.askdirectory(
             initialdir=self.home, parent=self, title="Choose where to save the priors"
         )
         if prior_dirpath_h5:
             # Should be the final priors path
             self.prior_path_h5 = os.path.join(
-                prior_dirpath_h5, "functionnectome_7Tpriors.h5"
+                prior_dirpath_h5,
+                PRIORS_ZIP[self.priorsName].replace('.zip', '.h5')
             )
             self.destroy()
-            Download_H5(prior_dirpath_h5)
+            Download_H5(prior_dirpath_h5, self.priorsName)
+            if self.DLall:
+                DL_missingH5(self.dictH5, self.prior_path_h5, prior_dirpath_h5)
 
     def Btn_select_folder(self):
         self.prior_path_h5 = filedialog.askopenfilename(
@@ -149,10 +225,279 @@ class Ask_hdf5_path(tk.Tk):
 
 # %% Main functions
 
+def testInputType(inVal, inLab, dtypeLab, opt, forGUI):
+    '''
+    Check if if retrieved setting correspond to the type it is supposed to.
+    '''
+    if isinstance(dtypeLab, tuple):  # The tuple should contain all possible inVal
+        if inVal not in dtypeLab:
+            error = ValueError(f"Wrong input value for '{inLab}'. Was expecting"
+                               f" a value among {dtypeLab} but got '{inVal}'.")
+            if forGUI:
+                return error
+            else:
+                raise error
+    elif isinstance(dtypeLab, type):
+        if dtypeLab is int:
+            try:
+                inVal = int(inVal)
+            except ValueError:
+                error = ValueError(f"Wrong input value for '{inLab}'. Was expecting"
+                                   f" an integer but got '{inVal}'.")
+                if forGUI:
+                    return error
+                else:
+                    raise error
+        elif isinstance(inVal, dtypeLab):
+            pass
+        else:
+            raise TypeError(f"Expecting the value to be '{dtypeLab}' but is '{type(inVal)}', "
+                            'which is unexpected...')
+    elif opt and inVal is None:
+        pass
+    else:
+        raise ValueError(f"Something went wrong with the retrieval of the setting '{inLab}': "
+                         f"The problematic parsed value is '{inVal}'")
+    return inVal
+
+
+def getInputValues(inLabel, sett, simpleLabels, optLabels, multLabels, newLabels, nbItems=0, forGUI=False):
+    """
+    Find the input from the settings to associate to a given variable
+
+    Parameters
+    ----------
+    inLabel : str
+        Label of the input to get the value to return.
+    sett : list
+        List of all the content of the settings file.
+    simpleLabels : dict
+        List of necessary labels (in the keys) with one input, and their data type
+    optLabels : dict
+        List of optional labels (in the keys) for custom priors (after ###)
+    multLabels : dict
+        List of necessary labels (in the keys) with multiple inputs (paths)
+    newLabs : dict
+        List of 'new' labels (not in V1) to take into account for retrocompatibility
+    nbItems : int
+        Number of input expected if inLabel in multilabels
+    forGUI : bool
+        Define if the function is called from the GUI or not, to handle errors differently
+
+    Returns
+    -------
+    inValue : str or list
+        Values to put in the variables associated with the input.
+
+    """
+    all_labels = {**simpleLabels, **multLabels, **optLabels}
+    labels = list(all_labels.keys())
+    labels.append("###")  # Alternative stopping condition for the while loop
+
+    optLabel = inLabel in optLabels.keys()
+
+    if inLabel not in sett:
+        if optLabel:
+            inValue = None  # Missing optional label
+        elif inLabel in newLabels.keys():
+            inValue = newLabels[inLabel]  # Missing newer label (with defaut value available)
+        else:
+            error = ValueError(f'"{inLabel}" is missing in the settings file.')
+            if forGUI:
+                return error
+            else:
+                raise error
+    else:
+        simpleLabels.update(optLabels)
+        if inLabel in simpleLabels.keys():
+            indvalue = sett.index(inLabel) + 1
+            if sett[indvalue] not in labels:
+                inValue = sett[indvalue]
+            else:
+                inValue = None  # Case of optional labels (or empty line in general)
+        elif inLabel in multLabels.keys():
+            inValue = []
+            labelInd = sett.index(inLabel)
+            lastItemInd = labelInd + 1
+            while lastItemInd < len(sett) and sett[lastItemInd] and sett[lastItemInd] not in labels:
+                if os.path.exists(sett[lastItemInd]):
+                    inValue.append(sett[lastItemInd])
+                else:
+                    error = FileNotFoundError(f"'{sett[lastItemInd]}' does not exist.")
+                    if forGUI:
+                        pass  # It's OK to have non existing files in the GUI
+                    else:  # It's not when actually running the Functionnectome
+                        raise error
+                lastItemInd += 1
+            if not len(inValue) == nbItems:
+                error = ValueError(
+                    f"Number of items ({nbItems}) for '{inLabel}' not matching the "
+                    f"number of files found in the settings file ({len(inValue)})"
+                )
+                if forGUI:
+                    return error
+                else:
+                    raise error
+        else:
+            error = ValueError("Wrong input value when parsing the settings file")
+            if forGUI:
+                return error
+            else:
+                raise error
+
+    # Test the data type of the retrieved input
+    dtypeLabel = all_labels[inLabel]
+    inValue = testInputType(inValue, inLabel, dtypeLabel, optLabel, forGUI)
+    return inValue
+
+
+def readSettings(settingF, forGUI=False):
+    """
+    Read the settings file and store the settings in a dict that can be used to
+    initialize the variables needed in the script.
+    Also check if all the intems are present.
+
+    When adding or removing settings in the file, change 'uniqueLabels',
+    'multiLabels', and 'optionalLabels' accordingly. There, each element in the
+    dict must be a key informing the label to search in the file and the type
+    of data it should yield: ('label': type). 'label' should be a string, and 'type'
+    should be a type (e.g. int, string, list) or a tuple. If it is a tuple,
+    it should contain all the possible allowed items the label should yield.
+
+    When adding new labels, add it to the newLabels variable too, to ensure
+    retrocompatibility
+
+    Parameters
+    ----------
+    settingF : str
+        Path to the settings file.
+
+    Raises
+    ------
+    ValueError
+        Settings file does not have all the expected values.
+
+    Returns
+    -------
+    varDict : dict
+        Contains all the settings to be exported into variables in the main function.
+
+    """
+    with open(settingF, "r") as f:
+        settings = f.read().split("\n")
+    settings = list(map(lambda s: s.strip(), settings))
+    varDict = {}
+    # Necessary items in the settings
+    uniqueLabels = {  # With 1 input
+        "Output folder:": str,
+        "Analysis ('voxel' or 'region'):": (
+            'voxel',
+            'region',
+        ),
+        "Number of parallel processes:": int,
+        "Priors stored as ('h5' or 'nii'):": (
+            'h5',
+            'nii',
+        ),
+        "Position of the subjects ID in their path:": int,
+        "Mask the output:": int,
+        "Number of subjects:": int,
+        "Number of masks:": int,
+        "HDF5 priors:": PRIORS_H5
+    }
+    multiLabels = {  # With multiple inputs
+        "Subject's BOLD paths:": list,
+        "Masks for voxelwise analysis:": list
+    }
+    # Optional items for custom priors in the settings (must only have 1 input each at most)
+    optionalLabels = {
+        "HDF5 path:": str,
+        "Template path:": str,
+        "Probability maps (voxel) path:": str,
+        "Probability maps (region) path:": str,
+        "Region masks path:": str
+    }
+    # Labels recently added, with potential retrocompatibility issues
+    # The value of the dict should be the default value to add if the label
+    # is absent from the file
+    newLabels = {"HDF5 priors:": 'V1.D.WB - Whole brain, Deterministic (legacy)'}
+
+    # Test if the settings file is properly organized (see the output of the GUI for an example)
+    # (redundent with the getInputValues check)
+    # inputsLabels = list(uniqueLabels.keys()) + list(multiLabels.keys())
+    # if not all(label in settings for label in inputsLabels):
+    #     missing = list(set(inputsLabels) - set(settings))
+    #     for nlab in newLabels.keys():
+    #         if nlab in missing:  # Missing new labels is potentially normal
+    #             missing.remove(nlab)
+    #     if len(missing):
+    #         missing = ["'" + lab + "'" for lab in missing]  # Adding '' around the labels
+    #         error = ValueError('''Settings file incomplete''' +
+    #                            "\nMissing label(s):\n" + "\n".join(missing))
+    #         if forGUI:
+    #             return error
+    #         else:
+    #             raise error
+
+    # Filling the input variables with the settings from the file
+    sameInput = {'sett': settings,
+                 'simpleLabels': uniqueLabels,
+                 'optLabels': optionalLabels,
+                 'multLabels': multiLabels,
+                 'newLabels': newLabels,
+                 'forGUI': forGUI,
+                 }
+    varDict['results_dir_root'] = getInputValues("Output folder:", **sameInput)
+    varDict['anatype'] = getInputValues("Analysis ('voxel' or 'region'):", **sameInput)
+    varDict['nb_of_batchs'] = int(getInputValues("Number of parallel processes:", **sameInput))
+    varDict['prior_type'] = getInputValues("Priors stored as ('h5' or 'nii'):", **sameInput)
+    varDict['priorsH5'] = getInputValues('HDF5 priors:', **sameInput)
+    varDict['subIDpos'] = int(getInputValues("Position of the subjects ID in their path:", **sameInput))
+    varDict['maskOutput'] = int(getInputValues("Mask the output:", **sameInput))
+    varDict['subNb'] = int(getInputValues("Number of subjects:", **sameInput))
+    varDict['bold_paths'] = getInputValues("Subject's BOLD paths:", **sameInput, nbItems=varDict['subNb'])
+    varDict['mask_nb'] = int(getInputValues("Number of masks:", **sameInput))
+    varDict['masks_vox'] = getInputValues(
+        "Masks for voxelwise analysis:",
+        **sameInput,
+        nbItems=varDict['mask_nb']
+    )
+
+    # Optional variables at the end of the file, to change the priors paths written here
+    if "###" in settings:
+        # "###" marks the presence of the optional settings
+        varDict['optSett'] = True
+        varDict['opt_h5_loc'] = getInputValues("HDF5 path:", **sameInput)
+        varDict['opt_template_path'] = getInputValues("Template path:", **sameInput)
+        varDict['opt_pmap_vox_loc'] = getInputValues("Probability maps (voxel) path:", **sameInput)
+        varDict['opt_pmap_region_loc'] = getInputValues("Probability maps (region) path:", **sameInput)
+        varDict['opt_regions_loc'] = getInputValues("Region masks path:", **sameInput)
+    else:
+        varDict['optSett'] = False
+    if forGUI:
+        for val in varDict.values():
+            if isinstance(val, Exception):
+                return val
+    return varDict
+
+
+def updateOldJson(jsonPath, priorsVal):
+    '''
+    Check if the json file requires updating, and edit it to fit the current way
+    of savin the priors paths.
+    '''
+    if "h5_priors" in priorsVal.keys():
+        priorsVal[PRIORS_H5[0]] = priorsVal["h5_priors"]
+        del priorsVal["h5_priors"]
+        with open(jsonPath, "w") as jsonP:
+            json.dump(priorsVal, jsonP)
+    return priorsVal
+
 
 def getUniqueIDs(bold_paths, subIDpos):
     """
-    Generate a unique ID for each file based on the subject ID (and the runs if there are multiple files per subject).
+    Generate a unique ID for each file based on the subject ID
+    (and the runs if there are multiple files per subject).
     These IDs will be used to create the output folder for each functionnectome file.
 
     Parameters
@@ -375,7 +720,10 @@ def Sum_regionwise_pmaps(regions_batch):
             for ii, reg in enumerate(regions_batch):
                 if not ii % 5:  # Log to follow the progress every few iteration
                     ctime = time.time() - startTime
-                    logtxt = f"Region {ii} in {len(regions_batch)} : {int(ctime//60)} min and {int(ctime%60)} sec\n"
+                    logtxt = (
+                        f"Region {ii} in {len(regions_batch)} : "
+                        f"{int(ctime//60)} min and {int(ctime%60)} sec\n"
+                    )
                     with open(logFile, "a") as log:
                         log.write(logtxt)
                 if ii == 0:
@@ -406,7 +754,10 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
         for ii, indvox in enumerate(ind_voxels_batch):
             if ii % 100 == 0:
                 ctime = time.time() - startTime
-                logtxt = f"Voxel {ii} in {len(ind_voxels_batch)} : {int(ctime//60)} min and {int(ctime%60)} sec\n"
+                logtxt = (
+                    f"Voxel {ii} in {len(ind_voxels_batch)} : "
+                    f"{int(ctime//60)} min and {int(ctime%60)} sec\n"
+                )
                 with open(logFile, "a") as log:
                     log.write(logtxt)
             try:
@@ -432,7 +783,10 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
             for ii, indvox in enumerate(ind_voxels_batch):
                 if not ii % 100:
                     ctime = time.time() - startTime
-                    logtxt = f"Voxel {ii} in {len(ind_voxels_batch)} : {int(ctime//60)} min and {int(ctime%60)} sec\n"
+                    logtxt = (
+                        f"Voxel {ii} in {len(ind_voxels_batch)} : "
+                        f"{int(ctime//60)} min and {int(ctime%60)} sec\n"
+                    )
                     with open(logFile, "a") as log:
                         log.write(logtxt)
                 if ii == 0:
@@ -645,7 +999,9 @@ def Voxelwise_functionnectome2(batch_num):
                 for ii, indvox in enumerate(batch_vox):
                     if ii % 100 == 0:  # Check the progress every 10 steps
                         ctime = time.time() - startTime
-                        logtxt = f"Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n"
+                        logtxt = (
+                            f"Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n"
+                        )
                         with open(logFile, "a") as log:
                             log.write(logtxt)
                     vox_pmap = h5fout["tract_voxel"][
@@ -679,7 +1035,9 @@ def Voxelwise_functionnectome2(batch_num):
                 for ii, indvox in enumerate(batch_vox):
                     if ii % 100 == 0:  # Check the progress every 10 steps
                         ctime = time.time() - startTime
-                        logtxt = f"Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n"
+                        logtxt = (
+                            f"Voxel {ii} in {len(batch_vox)} : {int(ctime//60)} min and {int(ctime%60)} sec\n"
+                        )
                         with open(logFile, "a") as log:
                             log.write(logtxt)
                     vox_pmap = h5fout["tract_voxel"][
@@ -738,68 +1096,38 @@ def run_functionnectome(settingFilePath, from_GUI=False):
 
     print("Loading settings")
     # Read the setting file given to set the input variables
-    with open(settingFilePath, "r") as f:
-        settings = f.read().split("\n")
-        settings = list(map(lambda s: s.strip("\t"), settings))
-        # Test if the settings file is properly organized (see the output of the GUI for an example)
-        orgTest = [
-            settings[0] == "Output folder:",
-            settings[2] == "Analysis ('voxel' or 'region'):",
-            settings[4] == "Number of parallel processes:",
-            settings[6] == "Priors stored as ('h5' or 'nii'):",
-            settings[8] == "Position of the subjects ID in their path:",
-            settings[10] == "Mask the output:",
-            settings[12] == "Number of subjects:",
-            settings[14] == "Number of masks:",
-            settings[16] == "Subject's BOLD paths:",
-            settings[16 + int(settings[13]) + 2] == "Masks for voxelwise analysis:",
-        ]
-        if not all(orgTest):
-            print("Settings file with bad internal organization")
-            sys.exit()
-        # Filling the input variables with the settings from the file
-        results_dir_root = settings[1]
-        anatype = settings[3]
-        nb_of_batchs = int(settings[5])
-        prior_type = settings[7]
-        subIDpos = int(settings[9])
-        maskOutput = int(settings[11])
-        subNb = int(settings[13])
-        bold_paths = []
-        for isub in range(17, 17 + subNb):
-            bold_paths.append(settings[isub])
-        if anatype == "voxel":
-            mask_nb = int(settings[15])
-            masks_vox = []
-            startline = 19 + subNb
-            for imask in range(startline, startline + mask_nb):
-                masks_vox.append(settings[imask])
+    settingsVar = readSettings(settingFilePath)
 
-        # Optional variables at the end of the file, to change the priors paths written here
-        if any(
-            "###" in s for s in settings
-        ):  # "###" marks the presence of the optional settings
-            indOpt = next((i, s) for i, s in enumerate(settings) if "###" in s)[
-                0
-            ]  # index of "###" first occurence
-            optSett = True
-        else:
-            optSett = False
-        if optSett:
-            opt_h5_loc = settings[indOpt + 2]
-            opt_template_path = settings[indOpt + 4]
-            opt_pmap_vox_loc = settings[indOpt + 6]
-            opt_pmap_region_loc = settings[indOpt + 8]
-            opt_regions_loc = settings[indOpt + 10]
+    results_dir_root = settingsVar['results_dir_root']
+    anatype = settingsVar['anatype']
+    nb_of_batchs = settingsVar['nb_of_batchs']
+    prior_type = settingsVar['prior_type']
+    priorsH5 = settingsVar['priorsH5']
+    subIDpos = settingsVar['subIDpos']
+    maskOutput = settingsVar['maskOutput']
+    subNb = settingsVar['subNb']
+    bold_paths = settingsVar['bold_paths']
+    if anatype == "voxel":
+        mask_nb = settingsVar['mask_nb']
+        masks_vox = settingsVar['masks_vox']
+
+    optSett = settingsVar['optSett']
+    if optSett:
+        opt_h5_loc = settingsVar['opt_h5_loc']
+        opt_template_path = settingsVar['opt_template_path']
+        opt_pmap_vox_loc = settingsVar['opt_pmap_vox_loc']
+        opt_pmap_region_loc = settingsVar['opt_pmap_region_loc']
+        opt_regions_loc = settingsVar['opt_regions_loc']
 
     # %% Checking for the existence of priors and asking what to do if none found
     if not optSett:  # If non default priors are used, override this
         pkgPath = os.path.dirname(__file__)
-        priorPath = os.path.join(pkgPath, "priors_paths.json")
-        if os.path.exists(priorPath):
+        jsonPath = os.path.join(pkgPath, "priors_paths.json")
+        if os.path.exists(jsonPath):
             newJson = False
-            with open(priorPath, "r") as pP:
-                priors_paths = json.load(pP)
+            with open(jsonPath, "r") as jsonP:
+                priors_paths = json.load(jsonP)
+            priors_paths = updateOldJson(jsonPath, priors_paths)
         else:  # Create a new dict to store the filepaths, filled below
             newJson = True
             priors_paths = {
@@ -807,18 +1135,15 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                 "regions": "",
                 "region_pmap": "",
                 "voxel_pmap": "",
-                "h5_priors": "",
             }
 
         if prior_type == "h5":
-            if not (
-                priors_paths["h5_priors"] and os.path.exists(priors_paths["h5_priors"])
-            ):
+            if priorsH5 not in priors_paths.keys() or not os.path.exists(priors_paths[priorsH5]):
                 # Missing h5 priors, so downloading required
                 newJson = True
                 h5P = ""
                 if from_GUI:
-                    ask_h5 = Ask_hdf5_path()
+                    ask_h5 = Ask_hdf5_path(priorsH5, priors_paths)
                     ask_h5.mainloop()
                     h5P = ask_h5.prior_path_h5
                 else:
@@ -837,11 +1162,25 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                         prior_dirpath_h5 = prior_dirpath_h5.replace(
                             "\\ ", " "
                         )  # If pasted from a file explorer
-                        if prior_dirpath_h5:
-                            Download_H5(prior_dirpath_h5)
-                            h5P = os.path.join(
-                                prior_dirpath_h5, "functionnectome_7TpriorsH5.zip"
+                        if prior_dirpath_h5 and os.path.exists(prior_dirpath_h5):
+                            askDLall = input(
+                                "Do you wish to download the whole suit of priors "
+                                "(for later use) or only the current priors? To download "
+                                "all the priors, type 'A' and Enter. "
+                                "To download only the current priors, type 'S' and Enter.\n"
+                                "A : All / O : Only current\n"
                             )
+                            if askDLall.upper().strip() in ("O", "A"):
+                                Download_H5(prior_dirpath_h5, priorsH5)
+                                h5P = os.path.join(
+                                    prior_dirpath_h5,
+                                    PRIORS_ZIP[priorsH5].replace('.zip', '.h5')
+                                )
+                                if os.path.exists(h5P):
+                                    if askDLall.upper().strip() == "A":
+                                        DL_missingH5(priors_paths, h5P, prior_dirpath_h5)
+                            else:
+                                print("Wrong entry (neither A nor O). Canceled...")
                     elif askDL.upper().strip() == "S":
                         h5P = input(
                             "Type (or paste) the path to the HDF5 priors file:\n"
@@ -852,11 +1191,12 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                         print("Wrong entry (neither D nor S). Canceled...")
 
                 if os.path.exists(h5P):
-                    priors_paths["h5_priors"] = h5P
+                    priors_paths[priorsH5] = h5P
                     print(f"Selected file for HDF5 priors : {h5P}")
                 else:
                     raise Exception(
-                        "No path to the priors file was provided. Stopping the program."
+                        "No correct path to the priors file was provided (or the dowloading failed). "
+                        "Stopping the program."
                     )
 
         if prior_type == "nii":
@@ -1031,8 +1371,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                             " but no folder containing the probability maps was provided"
                         )
         if newJson:
-            with open(priorPath, "w") as pP:
-                json.dump(priors_paths, pP)
+            with open(jsonPath, "w") as jsonP:
+                json.dump(priors_paths, jsonP)
 
     # %% Association of the priors path with their variables
     if prior_type == "nii":
@@ -1061,25 +1401,12 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                 raise Exception('Bad type of analysis (not "voxel" nor "region")')
     elif prior_type == "h5":
         if optSett:
-            # Two cases: a path to an external HDF5 file, or a path to a .nii template (i.e we use the default .h5 for
-            # everything but the template)
-            if not any((opt_h5_loc, opt_template_path)):
-                raise Exception("Using optional settings, but no path given.")
             if opt_h5_loc:
                 h5_loc = opt_h5_loc
-                template_path = ""
-            if opt_template_path:
-                print(
-                    "Using priors from the HDF5 file except for the template, imported from a nifti file."
-                )
-                template_path = opt_template_path
-                if opt_h5_loc:
-                    h5_loc = opt_h5_loc
-                else:
-                    priors_paths["h5_priors"]
+            else:
+                raise Exception("Using custum H5 priors, but no path given.")
         else:
-            h5_loc = priors_paths["h5_priors"]
-            template_path = ""
+            h5_loc = priors_paths[priorsH5]
         pmap_loc = h5_loc
         regions_loc = h5_loc
     else:
@@ -1124,12 +1451,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             listVoxFiles = None
     elif prior_type == "h5":
         with h5py.File(pmap_loc, "r") as h5fout:
-            if template_path:
-                template_img = nib.load(template_path)
-                template_vol = template_img.get_fdata().astype(bool)  # binarized
-            else:
-                template_vol = h5fout["template"][:]
-                template_vol = template_vol.astype(bool)
+            template_vol = h5fout["template"][:]
+            template_vol = template_vol.astype(bool)
 
             if anatype == "region":
                 hdr = h5fout["tract_region"].attrs["header"]
@@ -1175,7 +1498,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
 
         # %% Run the regionwise analysis
         if anatype == "region":
-            # Launching parallel processing for the sum all the regions' probability maps for later normalization
+            # Launching parallel processing for the sum all the regions' probability maps
+            # for later normalization
             sumpath = os.path.join(results_dir_root, "sum_probaMaps_regions.nii.gz")
             if not os.path.exists(sumpath):
                 with multiprocessing.Pool(
@@ -1250,8 +1574,9 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     print(affine3D.astype(int))
                 else:
                     print(
-                        "The orientation of the input 4D volume in not the same as orientation of the anatomical "
-                        "priors (which should be the MNI_152 2mm space):\n"
+                        "The orientation of the input 4D volume in not the same as "
+                        "orientation of the anatomical priors (which should be the "
+                        "MNI_152 2mm space):\n"
                         "Anatomical white matter prior's orientation:"
                     )
                     print(affine3D.astype(int))
@@ -1311,7 +1636,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             regions_BOLD_median = None
 
             # Create a shared RawArray that will contain the results
-            # Puting the time dim first (for contiguous data array, necessary to avoid copy with shared memory access)
+            # Puting the time dim first (for contiguous data array,
+            # necessary to avoid copy with shared memory access)
             bold_reshape = (bold_shape[-1], *bold_shape[:-1])
             fun_4D_shared = multiprocessing.RawArray("f", int(np.prod(bold_reshape)))
 
@@ -1370,7 +1696,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             sum_pmap4D_img = sum_pmap4D_all = None
         # %% Run the voxelwise analysis
         elif anatype == "voxel":
-            # Loading subject's mask, restriction to voxels inside the template, and getting the list of voxels' indexes
+            # Loading subject's mask, restriction to voxels inside the template,
+            # and getting the list of voxels' indexes
             if len(masks_vox) > 1:
                 mask_path = masks_vox[isub]
             elif len(masks_vox) == 1:
@@ -1474,7 +1801,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     print(affine3D.astype(int))
                 else:
                     print(
-                        "The orientation of the input 4D volume in not the same as orientation of the anatomical "
+                        "The orientation of the input 4D volume in not "
+                        "the same as orientation of the anatomical "
                         "priors (which should be the MNI_152 orientation):\n"
                         "Anatomical white matter prior's orientation:"
                     )

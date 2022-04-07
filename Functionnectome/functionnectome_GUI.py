@@ -14,6 +14,7 @@ Indeed, both lists containing them are sorted, and the paths are paired using th
 
 
 import tkinter as tk
+from tkinter import ttk
 import os
 import sys
 import warnings
@@ -39,40 +40,37 @@ class Functionnectome_GUI(tk.Tk):
         self.title("Functionnectome processing")
         self.home = os.path.expanduser("~")
         self.bold_paths = []  # List of the paths to the BOLD files
-        self.numFiles = (
-            tk.StringVar()
-        )  # Message diplayed in a label about the number of BOLD files selected
+        # Message diplayed in a label about the number of BOLD files selected:
+        self.numFiles = tk.StringVar()
         self.numFiles.set("0 BOLD files selected")
         self.nbFiles = tk.IntVar()  # The number of BOLD files selected
         self.nbFiles.set(0)
         self.nbFiles.trace("w", self.updateLbl)
-        self.mask_paths = (
-            []
-        )  # List of the paths to the mask(s) used in voxelwise analysis
-        self.mask_paths_tmp = (
-            []
-        )  # Buffer for mask_paths when the choice window is still open
+        # List of the paths to the mask(s) used in voxelwise analysis:
+        self.mask_paths = []
+        # Buffer for mask_paths when the choice window is still open:
+        self.mask_paths_tmp = []
         self.nbMasks = tk.IntVar()  # Number of masks selected
         self.nbMasks.set(0)
-        self.exSubName = (
-            tk.StringVar()
-        )  # Part of the first BOLD path selected as subject ID
+        # Part of the first BOLD path selected as subject ID:
+        self.exSubName = tk.StringVar()
         self.exSubName.set("Ex: ")
-        self.exPath = ()  # Decomposition of the first BOLD path into its subcomponents (devided by "/" or "\")
+        # Decomposition of the first BOLD path into its subcomponents (devided by "/" or "\"):
+        self.exPath = ()
         self.subInPath = tk.StringVar()  # Location of the subject's ID in the path
         self.subInPath.set("0")
-        self.outDir = (
-            tk.StringVar()
-        )  # Output directory where the results will be written
-        self.maskOutput = (
-            tk.IntVar()
-        )  # If true, the output will be masked with the template volume
+        # Output directory where the results will be written:
+        self.outDir = tk.StringVar()
+        # If true, the output will be masked with the template volume:
+        self.maskOutput = tk.IntVar()
         self.maskOutput.set(1)
         self.ana_type = tk.StringVar()  # Type of analysis (voxelwise or regionwise)
         self.ana_type.trace("w", self.activation_maskBtn)
         self.nb_parallel_proc = tk.StringVar()
         self.nb_parallel_proc.set("1")
-        self.priors = tk.StringVar()
+        self.priors = tk.StringVar()  # h5 or nii
+        # self.priors.trace("w", self.activation_h5)  # TODO : uncomment for the v2.0.0
+        self.priorsChoice = tk.StringVar()
         ipad = 3
         epad = 10
 
@@ -81,7 +79,7 @@ class Functionnectome_GUI(tk.Tk):
         self.lbl1 = tk.Label(
             self.fBOLD,
             text="Select BOLD files from one folder",
-            font="Helvetica 9 bold",
+            font="Helvetica 12 bold",
         )
         self.buttonBold1 = tk.Button(
             self.fBOLD, text="Choose files", command=self.get_bold1
@@ -115,7 +113,7 @@ class Functionnectome_GUI(tk.Tk):
         self.lbl2a = tk.Label(
             self.fBOLD,
             text="Select BOLD files by pasting paths",
-            font="Helvetica 9 bold",
+            font="Helvetica 12 bold",
         )
         self.buttonBold2 = tk.Button(
             self.fBOLD,
@@ -154,11 +152,11 @@ class Functionnectome_GUI(tk.Tk):
 
         # Output frame : Choose output folder
         self.fOut = tk.Frame(self, bd=1, relief="sunken")
-        self.lbl3a = tk.Label(self.fOut, text="Output folder", font="Helvetica 9 bold")
+        self.lbl3a = tk.Label(self.fOut, text="Output folder", font="Helvetica 12 bold")
         self.outDirIn = tk.Entry(self.fOut, bd=1, textvariable=self.outDir, width=30)
         self.buttonOutDir = tk.Button(self.fOut, text="...", command=self.get_outDir)
         self.lbl3b = tk.Label(
-            self.fOut, text="Mask the output:", font="Helvetica 9 bold"
+            self.fOut, text="Mask the output:", font="Helvetica 12 bold"
         )
         self.maskCheck = tk.Checkbutton(self.fOut, variable=self.maskOutput)
 
@@ -183,7 +181,7 @@ class Functionnectome_GUI(tk.Tk):
         self.lbl4a = tk.Label(
             self.fAna,
             text="Choose the type of analysis to run:",
-            font="Helvetica 9 bold",
+            font="Helvetica 12 bold",
         )
         self.ana_region = tk.Radiobutton(
             self.fAna,
@@ -201,7 +199,7 @@ class Functionnectome_GUI(tk.Tk):
             self.fAna, text="Select mask(s)", command=self.get_masks
         )
         self.lbl4b = tk.Label(
-            self.fAna, text="Number of parallel processes:", font="Helvetica 9 bold"
+            self.fAna, text="Number of parallel processes:", font="Helvetica 12 bold"
         )
         self.parallel_proc = tk.Spinbox(
             self.fAna,
@@ -211,7 +209,10 @@ class Functionnectome_GUI(tk.Tk):
             textvariable=self.nb_parallel_proc,
         )
         self.lbl4c = tk.Label(
-            self.fAna, text="Priors are stored as:", font="Helvetica 9 bold"
+            self.fAna, text="Priors are stored as:", font="Helvetica 12 bold"
+        )
+        self.lbl4d = tk.Label(
+            self.fAna, text="Choice of priors:", font="Helvetica 12 bold"
         )
         self.priorH5 = tk.Radiobutton(
             self.fAna, text="One HDF5 file", variable=self.priors, value="h5"
@@ -219,7 +220,14 @@ class Functionnectome_GUI(tk.Tk):
         self.priorNii = tk.Radiobutton(
             self.fAna, text="Multiple NIfTI files", variable=self.priors, value="nii"
         )
+        self.priorsFileList = list(fun.PRIORS_H5)
+        self.h5files = ttk.Combobox(self.fAna,
+                                    values=self.priorsFileList,
+                                    textvariable=self.priorsChoice,
+                                    state="readonly")
+        self.h5files.state(statespec=["disabled"])  # TODO : remove for the v2.0.0
         self.ana_type.set("voxel")
+        self.h5files.current(0)
         self.priors.set("h5")
 
         self.fAna.grid(
@@ -240,8 +248,10 @@ class Functionnectome_GUI(tk.Tk):
         self.lbl4b.grid(column=0, row=5, padx=5, pady=10, sticky="W")
         self.parallel_proc.grid(column=1, row=5, sticky="W")
         self.lbl4c.grid(column=0, row=6, columnspan=2, sticky="W", padx=5, pady=5)
+        self.lbl4d.grid(column=1, row=6, columnspan=2, sticky="W", padx=5, pady=5)
         self.priorH5.grid(column=0, row=7, sticky="W")
         self.priorNii.grid(column=0, row=8, sticky="W")
+        self.h5files.grid(column=1, row=7, sticky="W")
 
         # Bottom buttons
         self.saveBtn = tk.Button(self, text="Save", command=self.choseFileAndSave)
@@ -409,8 +419,9 @@ class Functionnectome_GUI(tk.Tk):
             n += 1
         with open(fpath, "w+") as f:
             f.write(settingsTxt)
-        self.destroy()
+        self.withdraw()
         fun.run_functionnectome(fpath, from_GUI=True)
+        self.destroy()
 
     def get_bold1(self):
         """
@@ -447,6 +458,12 @@ class Functionnectome_GUI(tk.Tk):
             filesInMsg.set("\n".join(preMsg))
         else:
             messagebox.showinfo("Selected files", "No file selected yet.")
+
+    def activation_h5(self, *args):
+        if self.priors.get() == "h5":
+            self.h5files.state(statespec=["!disabled"])
+        elif self.priors.get() == "nii":
+            self.h5files.state(statespec=["disabled"])
 
     def get_outDir(self):
         odir = self.outDir.get()
@@ -545,8 +562,8 @@ class Functionnectome_GUI(tk.Tk):
                         txtPaths.insert(f"{ii}.0", fpath + "\n", "bad")
                 return
 
-            # Decompose the paths into its componenents (separated by the OS separator "/" or "\") to find where
-            # they start to be different
+            # Decompose the paths into its componenents (separated by the OS separator "/" or "\")
+            # to find where they start to be different
             decomposedPaths = [
                 tuple(filter(None, os.path.normpath(pp2).split(os.path.sep)))
                 for pp2 in prePath2
@@ -665,12 +682,7 @@ class Functionnectome_GUI(tk.Tk):
             )
             if not confirm_save:
                 return 0
-            # messagebox.showwarning('Non-unique subject ID',
-            #                        ("There are multiple identical subject IDs, "
-            #                         "defined through the files' paths: The position "
-            #                         "of the subject ID in the path is probably wrong."),
-            #                        parent=self)
-            # return 0
+
         settingsTxt = (
             "Output folder:\n"
             "\t" + self.outDir.get() + "\n"
@@ -680,6 +692,8 @@ class Functionnectome_GUI(tk.Tk):
             "\t" + self.nb_parallel_proc.get() + "\n"
             "Priors stored as ('h5' or 'nii'):\n"
             "\t" + self.priors.get() + "\n"
+            "HDF5 priors:\n"
+            "\t" + self.priorsChoice.get() + "\n"
             "Position of the subjects ID in their path:\n"
             "\t" + posID + "\n"
             "Mask the output:\n"
@@ -724,121 +738,37 @@ class Functionnectome_GUI(tk.Tk):
         if not settingFilePath:
             return
 
-        with open(settingFilePath[0], "r") as f:
-            settings = f.read().split("\n")
-        settings = list(map(lambda s: s.strip("\t"), settings))
-        orgTest = [
-            settings[0] == "Output folder:",
-            settings[2] == "Analysis ('voxel' or 'region'):",
-            settings[4] == "Number of parallel processes:",
-            settings[6] == "Priors stored as ('h5' or 'nii'):",
-            settings[8] == "Position of the subjects ID in their path:",
-            settings[10] == "Mask the output:",
-            settings[12] == "Number of subjects:",
-            settings[14] == "Number of masks:",
-            settings[16] == "Subject's BOLD paths:",
-            settings[16 + int(settings[13]) + 2] == "Masks for voxelwise analysis:",
-        ]
-        if not all(orgTest):
-            messagebox.showwarning(
-                "Bad file", "The file is not properly organised.", parent=self
-            )
+        settingsDict = fun.readSettings(settingFilePath[0], forGUI=True)
+        if isinstance(settingsDict, Exception):
+            messagebox.showwarning('Error', settingsDict.args[0])
             return
-
-        try:
-            self.outDir.set(settings[1])
-            self.maskOutput.set(int(settings[11]))
-            if settings[3] in ("region", "voxel"):
-                self.ana_type.set(settings[3])
-            else:
-                messagebox.showwarning(
-                    "Bad value",
-                    f"Bad analysis type, should be 'region' or 'voxel', but is '{settings[3]}'",
-                    parent=self,
+        self.outDir.set(settingsDict['results_dir_root'])
+        self.maskOutput.set(settingsDict['maskOutput'])
+        self.ana_type.set(settingsDict['anatype'])
+        self.nb_parallel_proc.set(settingsDict['nb_of_batchs'])
+        self.nbFiles.set(settingsDict['subNb'])
+        self.priors.set(settingsDict['prior_type'])
+        self.priorsChoice.set(settingsDict['priorsH5'])
+        self.bold_paths = settingsDict['bold_paths']
+        if settingsDict['subIDpos'] == -1:
+            self.subInPath.set("0")
+            self.exSubName.set("Ex: ")
+            self.exPath = ()
+        else:
+            self.subInPath.set(settingsDict['subIDpos'])
+            self.exPath = tuple(
+                filter(
+                    None, os.path.normpath(self.bold_paths[0]).split(os.path.sep)
                 )
-                return
-
-            try:
-                int(settings[5])
-            except ValueError:
-                messagebox.showwarning(
-                    "Bad value",
-                    "The number of processes should be an integer",
-                    parent=self,
-                )
-                return
-            self.nb_parallel_proc.set(settings[5])
-
-            if settings[7] in ("h5", "nii"):
-                self.priors.set(settings[7])
-            else:
-                messagebox.showwarning(
-                    "Bad value",
-                    f"Bad prior type, should be 'h5' or 'nii', but is '{settings[7]}'",
-                    parent=self,
-                )
-                return
-
-            try:
-                int(settings[9])
-            except ValueError:
-                messagebox.showwarning(
-                    "Bad value",
-                    "The posistion of the subject's ID should be an integer",
-                    parent=self,
-                )
-                return
-
-            self.bold_paths = []
-            self.nbFiles.set(int(settings[13]))
-            for isub in range(17, 17 + int(settings[13])):
-                self.bold_paths.append(settings[isub])
-            if settings[9] == "-1":
-                self.subInPath.set("0")
-                self.exSubName.set("Ex: ")
-                self.exPath = ()
-            else:
-                self.subInPath.set(settings[9])
-                self.exPath = tuple(
-                    filter(
-                        None, os.path.normpath(self.bold_paths[0]).split(os.path.sep)
-                    )
-                )
-                self.posSubName.config(to=len(self.exPath) - 1)
-                self.exSubName.set("Ex: " + self.exPath[int(self.subInPath.get())])
-
-            self.mask_paths = []
-            self.nbMasks.set(int(settings[15]))
-            startline = 19 + int(settings[13])
-            stopline = startline + int(settings[15])
-            for isub in range(startline, stopline):
-                self.mask_paths.append(settings[isub])
-
-            if len(settings) > 19 + int(settings[13]) + int(settings[15]):
-                sett_tail = "".join(
-                    settings[19 + int(settings[13]) + int(settings[15]) :]
-                )  # convert to 1 long string
-                if "###" in sett_tail:
-                    indStop = sett_tail.find("###")
-                    sett_tail = sett_tail[:indStop]
-                sett_tail = "".join(sett_tail.split())  # remove all whitespaces
-                if sett_tail:  # Check if there is anything left
-                    messagebox.showwarning(
-                        "More data than expected in the file",
-                        (
-                            "There are non-empty lines trailing after the last considered line "
-                            "in the settings file.\n"
-                            "Check if the number of files announced is the same as the actual "
-                            "number of paths written in the file."
-                        ),
-                        parent=self,
-                    )
-        except:
-            messagebox.showwarning(
-                "Bad file",
-                "There is a problem with the setting file. Check if its syntax is correct.",
-                parent=self,
             )
+            self.posSubName.config(to=len(self.exPath) - 1)
+            self.exSubName.set("Ex: " + self.exPath[int(self.subInPath.get())])
+        if settingsDict['mask_nb']:
+            self.nbMasks.set(settingsDict['mask_nb'])
+            self.mask_paths = settingsDict['masks_vox']
+        else:
+            self.nbMasks.set(0)
+            self.mask_paths = []
 
 
 # %%

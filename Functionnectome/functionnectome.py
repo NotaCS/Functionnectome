@@ -45,7 +45,6 @@ from pathlib import Path
 import pandas as pd
 
 # %% Information about the priors, shared as gloaba variable. Update here.
-global PRIORS_H5, PRIORS_URL, PRIORS_ZIP  # Tuple with the available HDF5 priors labels
 
 PRIORS_INFO = (  # TODO : Fill the URL when available
     ('V1.D.WB - Whole brain, Deterministic (legacy)',
@@ -115,6 +114,14 @@ def check_DLprogress(datasize, zipname):
 
 
 def Download_H5(prior_dirpath_h5, priorsName):
+    '''
+    Downloads the HDF5 priors from the internet.
+    Takes as input:
+        the folder where to save the files
+        the priors label indicated which prior to DL
+        (opt.) The tkinter instance of the GUI
+    Returns the path of the DLed priors after unzipping.
+    '''
     dl_url = PRIORS_URL[priorsName]
     fname = PRIORS_ZIP[priorsName]
     zipname = os.path.join(prior_dirpath_h5, fname)
@@ -132,9 +139,11 @@ def Download_H5(prior_dirpath_h5, priorsName):
         sys.stdout.flush()
     print("Unzipping...")
     with zipfile.ZipFile(zipname, "r") as zip_ref:
-        zip_ref.extractall(prior_dirpath_h5)
+        filename = zipname.namelist()[0]
+        outPath = zip_ref.extract(filename, prior_dirpath_h5)
     os.remove(zipname)
     print("Done")
+    return outPath
 
 
 def DL_missingH5(dictPaths, currentH5, h5Dir):
@@ -146,11 +155,7 @@ def DL_missingH5(dictPaths, currentH5, h5Dir):
     )
     for n, priorpath in enumerate(missingH5):
         print(f"Downloading file {n + 1}/{len(missingH5)}")
-        Download_H5(h5Dir, priorpath)
-        missH5P = os.path.join(
-            h5Dir,
-            PRIORS_ZIP[priorpath].replace('.zip', '.h5')
-        )
+        missH5P = Download_H5(h5Dir, priorpath)
         if os.path.exists(missH5P):
             dictPaths[priorpath] = missH5P
 
@@ -189,7 +194,7 @@ class Ask_hdf5_path(tk.Tk):
         self.btnDL.grid(column=0, row=1)
         #
         self.btnSelect = tk.Button(
-            self, text="Select priors file", command=self.Btn_select_folder
+            self, text="Select priors file", command=self.Btn_select_file
         )
         self.btnSelect.grid(column=1, row=1)
         #
@@ -203,16 +208,13 @@ class Ask_hdf5_path(tk.Tk):
         )
         if prior_dirpath_h5:
             # Should be the final priors path
-            self.prior_path_h5 = os.path.join(
-                prior_dirpath_h5,
-                PRIORS_ZIP[self.priorsName].replace('.zip', '.h5')
-            )
-            self.destroy()
-            Download_H5(prior_dirpath_h5, self.priorsName)
+            self.withdraw()
+            self.prior_path_h5 = Download_H5(prior_dirpath_h5, self.priorsName)
             if self.DLall:
                 DL_missingH5(self.dictH5, self.prior_path_h5, prior_dirpath_h5)
+            self.destroy()
 
-    def Btn_select_folder(self):
+    def Btn_select_file(self):
         self.prior_path_h5 = filedialog.askopenfilename(
             parent=self,
             initialdir=self.home,
@@ -220,6 +222,7 @@ class Ask_hdf5_path(tk.Tk):
             filetypes=[("HDF5 files", ".h5 .hdf5")],
         )
         if self.prior_path_h5:
+            self.withdraw()
             self.destroy()
 
 
@@ -421,23 +424,6 @@ def readSettings(settingF, forGUI=False):
     # The value of the dict should be the default value to add if the label
     # is absent from the file
     newLabels = {"HDF5 priors:": 'V1.D.WB - Whole brain, Deterministic (legacy)'}
-
-    # Test if the settings file is properly organized (see the output of the GUI for an example)
-    # (redundent with the getInputValues check)
-    # inputsLabels = list(uniqueLabels.keys()) + list(multiLabels.keys())
-    # if not all(label in settings for label in inputsLabels):
-    #     missing = list(set(inputsLabels) - set(settings))
-    #     for nlab in newLabels.keys():
-    #         if nlab in missing:  # Missing new labels is potentially normal
-    #             missing.remove(nlab)
-    #     if len(missing):
-    #         missing = ["'" + lab + "'" for lab in missing]  # Adding '' around the labels
-    #         error = ValueError('''Settings file incomplete''' +
-    #                            "\nMissing label(s):\n" + "\n".join(missing))
-    #         if forGUI:
-    #             return error
-    #         else:
-    #             raise error
 
     # Filling the input variables with the settings from the file
     sameInput = {'sett': settings,
@@ -1145,6 +1131,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                 if from_GUI:
                     ask_h5 = Ask_hdf5_path(priorsH5, priors_paths)
                     ask_h5.mainloop()
+                    print(ask_h5.prior_path_h5)
                     h5P = ask_h5.prior_path_h5
                 else:
                     askDL = input(
@@ -1171,14 +1158,9 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                                 "A : All / O : Only current\n"
                             )
                             if askDLall.upper().strip() in ("O", "A"):
-                                Download_H5(prior_dirpath_h5, priorsH5)
-                                h5P = os.path.join(
-                                    prior_dirpath_h5,
-                                    PRIORS_ZIP[priorsH5].replace('.zip', '.h5')
-                                )
-                                if os.path.exists(h5P):
-                                    if askDLall.upper().strip() == "A":
-                                        DL_missingH5(priors_paths, h5P, prior_dirpath_h5)
+                                h5P = Download_H5(prior_dirpath_h5, priorsH5)
+                                if askDLall.upper().strip() == "A" and os.path.exists(h5P):
+                                    DL_missingH5(priors_paths, h5P, prior_dirpath_h5)
                             else:
                                 print("Wrong entry (neither A nor O). Canceled...")
                     elif askDL.upper().strip() == "S":

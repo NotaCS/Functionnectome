@@ -17,10 +17,13 @@ import tkinter as tk
 from tkinter import ttk
 import os
 import sys
+import json
 import warnings
 from tkinter import filedialog
 from tkinter import messagebox
 from pathlib import Path
+
+import time  # TODO remove
 
 try:
     import Functionnectome.functionnectome as fun
@@ -40,6 +43,7 @@ class Functionnectome_GUI(tk.Tk):
         self.title("Functionnectome processing")
         self.home = os.path.expanduser("~")
         self.bold_paths = []  # List of the paths to the BOLD files
+        self.run = False  # To run or not to run (the Functionnectome)
         # Message diplayed in a label about the number of BOLD files selected:
         self.numFiles = tk.StringVar()
         self.numFiles.set("0 BOLD files selected")
@@ -228,6 +232,10 @@ class Functionnectome_GUI(tk.Tk):
         self.h5files.state(statespec=["disabled"])  # TODO : remove for the v2.0.0
         self.ana_type.set("voxel")
         self.h5files.current(0)
+        self.buttonDL = tk.Button(
+            self.fAna, text="Manual download", command=self.DLpriors
+        )
+        self.buttonDL.config(state="disabled")  # TODO : remove for the v2.0.0
         self.priors.set("h5")
 
         self.fAna.grid(
@@ -252,6 +260,7 @@ class Functionnectome_GUI(tk.Tk):
         self.priorH5.grid(column=0, row=7, sticky="W")
         self.priorNii.grid(column=0, row=8, sticky="W")
         self.h5files.grid(column=1, row=7, sticky="W")
+        self.buttonDL.grid(column=1, row=8)
 
         # Bottom buttons
         self.saveBtn = tk.Button(self, text="Save", command=self.choseFileAndSave)
@@ -410,17 +419,16 @@ class Functionnectome_GUI(tk.Tk):
         if settingsTxt == 0:
             return
         Path(self.outDir.get()).mkdir(parents=True, exist_ok=True)
-        fpath = os.path.join(self.outDir.get(), "settings.fcntm")
+        self.fpath = os.path.join(self.outDir.get(), "settings.fcntm")
         n = 1
         while os.path.exists(
-            fpath
+            self.fpath
         ):  # Add a number in the filename if there is already one existing
-            fpath = os.path.join(self.outDir.get(), f"settings{n}.fcntm")
+            self.fpath = os.path.join(self.outDir.get(), f"settings{n}.fcntm")
             n += 1
-        with open(fpath, "w+") as f:
+        with open(self.fpath, "w+") as f:
             f.write(settingsTxt)
-        self.withdraw()
-        fun.run_functionnectome(fpath, from_GUI=True)
+        self.run = True
         self.destroy()
 
     def get_bold1(self):
@@ -462,8 +470,60 @@ class Functionnectome_GUI(tk.Tk):
     def activation_h5(self, *args):
         if self.priors.get() == "h5":
             self.h5files.state(statespec=["!disabled"])
+            self.buttonDL.config(state="normal")
         elif self.priors.get() == "nii":
             self.h5files.state(statespec=["disabled"])
+            self.buttonDL.config(state="disabled")
+
+    def DLpriors(self):
+        '''
+        Download the selected priors (if they are not already downloaded)
+        '''
+        # First check if there is a json file with the priors path
+        currentPriors = self.priorsChoice.get()
+        pkgPath = os.path.dirname(__file__)
+        jsonPath = os.path.join(pkgPath, "priors_paths.json")
+        if os.path.exists(jsonPath):
+            with open(jsonPath, "r") as jsonP:
+                priors_paths = json.load(jsonP)
+            priors_paths = fun.updateOldJson(jsonPath, priors_paths)
+        else:  # Create a new dict to store the filepaths, filled below
+            priors_paths = {
+                "template": "",
+                "regions": "",
+                "region_pmap": "",
+                "voxel_pmap": "",
+            }
+        if currentPriors in priors_paths.keys():
+            messagebox.showinfo("Already there", "The selected priors are already available.")
+        else:
+            prior_dirpath_h5 = filedialog.askdirectory(
+                initialdir=self.home, parent=self, title="Choose where to save the priors"
+            )
+            if prior_dirpath_h5:
+                DLwindow = tk.Toplevel(self)
+                DLwindow.title("Downloading")
+                DLwindow.grab_set()
+                pb = ttk.Progressbar(  # TODO : does not work yet. To be corrected
+                    DLwindow,
+                    orient='horizontal',
+                    mode='indeterminate',
+                    length=280
+                )
+                infolabel = ttk.Label(DLwindow, text='Downloading in progress... Check the terminal for more details.')
+                infolabel.grid(column=0, row=0)
+                pb.grid(column=0, row=1)
+                pb.start()
+                DLwindow.update()
+                # prior_path_h5 = fun.Download_H5(prior_dirpath_h5, currentPriors)
+                # time.sleep(5)
+                prior_path_h5 = ""
+                DLwindow.destroy()
+                DLwindow.update()
+                if os.path.exists(prior_path_h5):
+                    priors_paths[currentPriors] = prior_path_h5
+                    with open(jsonPath, "w") as jsonP:
+                        json.dump(priors_paths, jsonP)
 
     def get_outDir(self):
         odir = self.outDir.get()
@@ -781,6 +841,8 @@ def run_gui():
         warnings.warn("Python version < 3.6 |nIt might not work. Consider updating.")
     functionnectome_GUI = Functionnectome_GUI()
     functionnectome_GUI.mainloop()
+    if functionnectome_GUI.run:
+        fun.run_functionnectome(functionnectome_GUI.fpath, from_GUI=True)
 
 
 if __name__ == "__main__":

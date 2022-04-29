@@ -139,7 +139,7 @@ def Download_H5(prior_dirpath_h5, priorsName):
         sys.stdout.flush()
     print("Unzipping...")
     with zipfile.ZipFile(zipname, "r") as zip_ref:
-        filename = zipname.namelist()[0]
+        filename = zip_ref.namelist()[0]
         outPath = zip_ref.extract(filename, prior_dirpath_h5)
     os.remove(zipname)
     print("Done")

@@ -19,11 +19,11 @@ import os
 import sys
 import json
 import warnings
+import multiprocessing as mp
 from tkinter import filedialog
 from tkinter import messagebox
 from pathlib import Path
 
-import time  # TODO remove
 
 try:
     import Functionnectome.functionnectome as fun
@@ -42,6 +42,7 @@ class Functionnectome_GUI(tk.Tk):
         # self.geometry('600x320')
         self.title("Functionnectome processing")
         self.home = os.path.expanduser("~")
+        self.cwd = os.getcwd()  # change to the last chosen folder along the way
         self.bold_paths = []  # List of the paths to the BOLD files
         self.run = False  # To run or not to run (the Functionnectome)
         # Message diplayed in a label about the number of BOLD files selected:
@@ -75,6 +76,7 @@ class Functionnectome_GUI(tk.Tk):
         self.priors = tk.StringVar()  # h5 or nii
         # self.priors.trace("w", self.activation_h5)  # TODO : uncomment for the v2.0.0
         self.priorsChoice = tk.StringVar()
+        self.prior_path_h5 = ''  # Path to the h5 file (used when DL priors)
         ipad = 3
         epad = 10
 
@@ -283,7 +285,7 @@ class Functionnectome_GUI(tk.Tk):
         def choose_masks():
             masks_path_tmp = filedialog.askopenfilenames(
                 parent=top_mask,
-                initialdir=self.home,
+                initialdir=self.cwd,
                 title="Choose the masks files",
                 filetypes=[("Nifti files", ".nii .gz")],
             )
@@ -291,15 +293,17 @@ class Functionnectome_GUI(tk.Tk):
                 self.mask_paths_tmp = list(masks_path_tmp)
                 self.mask_paths_tmp.sort()
                 self.nbMasks.set(len(masks_path_tmp))
+                self.cwd = os.path.dirname(masks_path_tmp[0])
 
         def choose_mask():
             mask_file_tmp = filedialog.askopenfilename(
                 parent=top_mask,
-                initialdir=self.home,
+                initialdir=self.cwd,
                 title="Choose the mask file",
                 filetypes=[("Nifti files", ".nii .gz")],
             )
             if mask_file_tmp:
+                self.cwd = os.path.dirname(mask_file_tmp)
                 self.mask_paths_tmp = [mask_file_tmp]
                 self.nbMasks.set(1)
 
@@ -430,6 +434,7 @@ class Functionnectome_GUI(tk.Tk):
             f.write(settingsTxt)
         self.run = True
         self.destroy()
+        self.update()
 
     def get_bold1(self):
         """
@@ -440,13 +445,14 @@ class Functionnectome_GUI(tk.Tk):
         self.subInPath.set("0")
         bold_paths_tmp = filedialog.askopenfilenames(
             parent=self.fBOLD,
-            initialdir=self.home,
+            initialdir=self.cwd,
             title="Choose the BOLD files",
             filetypes=[("Nifti files", ".nii .gz")],
         )
         if bold_paths_tmp:  # to manage empty answers and "Cancel" use
             self.bold_paths = list(bold_paths_tmp)
             self.bold_paths.sort()
+            self.cwd = os.path.dirname(bold_paths_tmp[0])
         self.nbFiles.set(len(self.bold_paths))
 
     def update_exSub(self):
@@ -479,6 +485,16 @@ class Functionnectome_GUI(tk.Tk):
         '''
         Download the selected priors (if they are not already downloaded)
         '''
+        def check_if_running(rez, mppool, window):
+            """Check every second if the function is finished."""
+            if not rez.ready():
+                window.update()
+                window.after(1000, check_if_running, rez, mppool, window)
+            else:
+                window.destroy()
+                mppool.close()
+                mppool.join()
+                self.prior_path_h5 = rez.get()
         # First check if there is a json file with the priors path
         currentPriors = self.priorsChoice.get()
         pkgPath = os.path.dirname(__file__)
@@ -495,16 +511,19 @@ class Functionnectome_GUI(tk.Tk):
                 "voxel_pmap": "",
             }
         if currentPriors in priors_paths.keys():
-            messagebox.showinfo("Already there", "The selected priors are already available.")
+            if os.path.exists(priors_paths[currentPriors]):
+                messagebox.showinfo("Already there", "The selected priors are already available.")
         else:
             prior_dirpath_h5 = filedialog.askdirectory(
                 initialdir=self.home, parent=self, title="Choose where to save the priors"
             )
             if prior_dirpath_h5:
+                pool = mp.Pool(processes=1)
+                res = pool.apply_async(fun.Download_H5, (prior_dirpath_h5, currentPriors))
                 DLwindow = tk.Toplevel(self)
                 DLwindow.title("Downloading")
                 DLwindow.grab_set()
-                pb = ttk.Progressbar(  # TODO : does not work yet. To be corrected
+                pb = ttk.Progressbar(
                     DLwindow,
                     orient='horizontal',
                     mode='indeterminate',
@@ -515,20 +534,16 @@ class Functionnectome_GUI(tk.Tk):
                 pb.grid(column=0, row=1)
                 pb.start()
                 DLwindow.update()
-                # prior_path_h5 = fun.Download_H5(prior_dirpath_h5, currentPriors)
-                # time.sleep(5)
-                prior_path_h5 = ""
-                DLwindow.destroy()
-                DLwindow.update()
-                if os.path.exists(prior_path_h5):
-                    priors_paths[currentPriors] = prior_path_h5
+                DLwindow.after(1000, check_if_running, res, pool, DLwindow)
+                if os.path.exists(self.prior_path_h5):
+                    priors_paths[currentPriors] = self.prior_path_h5
                     with open(jsonPath, "w") as jsonP:
                         json.dump(priors_paths, jsonP)
 
     def get_outDir(self):
         odir = self.outDir.get()
         if not odir:
-            odir = self.home
+            odir = self.cwd
         outDir_tmp = filedialog.askdirectory(
             initialdir=odir,
             parent=self.fOut,
@@ -536,6 +551,7 @@ class Functionnectome_GUI(tk.Tk):
         )
         if outDir_tmp:  # to manage empty answers and "Cancel" use
             self.outDir.set(outDir_tmp)
+            self.cwd = os.path.dirname(outDir_tmp)
             # if not os.path.isdir(outDir_tmp):
             #     os.mkdir(outDir_tmp)
 
@@ -776,29 +792,27 @@ class Functionnectome_GUI(tk.Tk):
             return
         f = filedialog.asksaveasfile(
             parent=self.fBOLD,
-            initialdir=self.home,
+            initialdir=self.cwd,
             mode="w",
             defaultextension=".fcntm",
             title="Save settings (.fcntm)",
             filetypes=[("Setting files", ".fcntm"), ("All files", ".*")],
         )
-        if f is None:  # asksaveasfile return `None` if dialog closed with "cancel".
-            return
-        f.write(settingsTxt)
-        f.close()
+        if f is not None:  # asksaveasfile return `None` if dialog closed with "cancel".
+            f.write(settingsTxt)
+            f.close()
 
     def loadSettings(self):
-        settingFilePath = filedialog.askopenfilenames(
+        settingFilePath = filedialog.askopenfilename(
             parent=self,
-            initialdir=self.home,
+            initialdir=self.cwd,
             title="Choose the settings file to load",
             filetypes=[("Setting files", ".fcntm"), ("All files", ".*")],
-            multiple=False,
         )
         if not settingFilePath:
             return
-
-        settingsDict = fun.readSettings(settingFilePath[0], forGUI=True)
+        self.cwd = os.path.dirname(settingFilePath)
+        settingsDict = fun.readSettings(settingFilePath, forGUI=True)
         if isinstance(settingsDict, Exception):
             messagebox.showwarning('Error', settingsDict.args[0])
             return

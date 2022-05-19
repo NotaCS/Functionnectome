@@ -76,11 +76,11 @@ def checkOutFile(parser, path):
         parser.error(
             f"The directory of the output file '{nameFile}' does not exist."
             f"Please change the output directory or create it ({pathDir})."
-            )
+        )
     if os.path.isfile(path):
         parser.error(
             f"The output file '{path}' already exists. Change the name or delete it."
-            )
+        )
 
 
 def checkInFile(parser, path):
@@ -88,7 +88,7 @@ def checkInFile(parser, path):
     if not os.path.isfile(path):
         parser.error(
             f"The input file '{path}' does not exists. Check and correct the path, then retry."
-            )
+        )
 
 
 def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
@@ -125,7 +125,7 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
 
     if not (ROI_im.affine == atlas_im.affine).all():
         ROI_affine[0] = -ROI_affine[0]
-        if (ROI_affine ==  atlas_im.affine).all():
+        if (ROI_affine == atlas_im.affine).all():
             ROI = np.flip(ROI)
         else:
             print("Orientation (affine) of the input ROI volume not recognized. "
@@ -157,9 +157,9 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
         binMaps[binMaps > 0] = 1
 
     presence = ROIinAtlas.sum(0)
-    presenceProp = 100*presence/presence.sum()
-    presenceRSNprop = 100*presence/totalPresRSN
-    coverage = 100*binMaps.sum(0)/ROI.sum()
+    presenceProp = 100 * presence / presence.sum()
+    presenceRSNprop = 100 * presence / totalPresRSN
+    coverage = 100 * binMaps.sum(0) / ROI.sum()
 
     indRSNpresent = np.argwhere(presence).T[0]
     for i in indRSNpresent:
@@ -175,21 +175,23 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
 def make_fun_autopct(res):
     def fun_autopct(pct):
         res_array = res[['Presence (%)', 'Coverage (%)']].values
-        ind_pct = (np.abs(res_array[:,0] - pct)).argmin()  # Ugly but should work (in most cases)
-        pct_cov = res_array[ind_pct,1]
+        ind_pct = (np.abs(res_array[:, 0] - pct)).argmin()  # Ugly but should work (in most cases)
+        pct_cov = res_array[ind_pct, 1]
         return "{:.1f}%\n({:.1f}%)".format(pct, pct_cov)
     return fun_autopct
+
 
 def make_fun_autopct_withThr(res):
     def fun_autopct(pct):
         res_array = res[['Presence (%)', 'Coverage (%)']].values
-        ind_pct = (np.abs(res_array[:,0] - pct)).argmin()  # Ugly but should work (in most cases)
+        ind_pct = (np.abs(res_array[:, 0] - pct)).argmin()  # Ugly but should work (in most cases)
         if ind_pct == 0:
             return "{:.1f}%".format(pct)
         else:
-            pct_cov = res_array[ind_pct,1]
+            pct_cov = res_array[ind_pct, 1]
             return "{:.1f}%\n({:.1f}%)".format(pct, pct_cov)
     return fun_autopct
+
 
 def plot_pie(res, outFile, thresh_percent):
     lowrsn = (res['Presence (%)'] < thresh_percent)
@@ -200,7 +202,7 @@ def plot_pie(res, outFile, thresh_percent):
         for i in range(lowrsnNb):
             sumLow += res.loc[i, 'Presence (raw)']
             res_thr = res_thr.drop(i)
-        perc_sumLow = 100*sumLow/res['Presence (raw)'].sum()
+        perc_sumLow = 100 * sumLow / res['Presence (raw)'].sum()
         res_thr = pd.concat([pd.DataFrame({'RSN number': [f'< {thresh_percent}% ({lowrsnNb} RSN)'],
                                            'Presence (raw)': [sumLow],
                                            'Presence (%)': perc_sumLow}), res_thr],
@@ -212,7 +214,7 @@ def plot_pie(res, outFile, thresh_percent):
         plt.figure(figsize=(10, 8), dpi=120)
         patches, texts, autotexts = plt.pie(res_thr['Presence (raw)'],
                                             labels=res_thr['RSN number'],
-                                            textprops={'fontsize': 12, 'font':'Arial'},
+                                            textprops={'fontsize': 12, 'font': 'Arial'},
                                             autopct=make_fun_autopct_withThr(res_thr),  # '%1.1f%%',
                                             shadow=False,
                                             colors=colors,
@@ -227,7 +229,7 @@ def plot_pie(res, outFile, thresh_percent):
         plt.figure(figsize=(10, 8), dpi=120)
         patches, texts, autotexts = plt.pie(res['Presence (raw)'],
                                             labels=res['RSN number'],
-                                            textprops={'fontsize': 12, 'font':'Arial'},
+                                            textprops={'fontsize': 12, 'font': 'Arial'},
                                             autopct=make_fun_autopct(res),
                                             shadow=False,
                                             colors=colors,
@@ -257,7 +259,7 @@ def main():
         checkOutFile(parser, args.out_pie)
 
     res = computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh, binarize)
-    res = res.sort_values('Presence (%)').reset_index()
+    res = res.sort_values('Presence (%)', ascending=False).reset_index()
 
     if args.out_table:
         res.to_csv(args.out_table, sep='\t')
@@ -265,8 +267,10 @@ def main():
         print(res)
 
     if args.out_pie:
+        res = res.sort_values('Presence (%)').reset_index()
         plot_pie(res, args.out_pie, float(args.thr_low_pie))
 
-#%%
+
+# %%
 if __name__ == "__main__":
     main()

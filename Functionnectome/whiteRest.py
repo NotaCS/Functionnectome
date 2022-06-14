@@ -157,8 +157,11 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
         binMaps[binMaps > 0] = 1
 
     presence = ROIinAtlas.sum(0)
-    presenceProp = 100 * presence / presence.sum()
-    presenceRSNprop = 100 * presence / totalPresRSN
+    presenceRSNnorm = 100 * presence / totalPresRSN
+    presenceProp = 100 * np.divide(presenceRSNnorm,
+                                   presenceRSNnorm.sum(),
+                                   out=np.zeros_like(presenceRSNnorm),
+                                   where=presenceRSNnorm.sum() != 0)
     coverage = 100 * binMaps.sum(0) / ROI.sum()
 
     indRSNpresent = np.argwhere(presence).T[0]
@@ -167,8 +170,9 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
                               RSNlabels.loc[i, 'RSN name'],  # RSN name
                               presenceProp[i],  # Presence (%)
                               presence[i],  # Presence (raw)
-                              presenceRSNprop[i],  # Presence (RSN)
+                              presenceRSNnorm[i],  # Presence (RSN)
                               coverage[i]]  # Coverage
+    resPresence.sort_values('Presence (%)', ascending=False, inplace=True, ignore_index=True)
     return resPresence
 
 
@@ -259,7 +263,6 @@ def main():
         checkOutFile(parser, args.out_pie)
 
     res = computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh, binarize)
-    res = res.sort_values('Presence (%)', ascending=False).reset_index()
 
     if args.out_table:
         res.to_csv(args.out_table, sep='\t')

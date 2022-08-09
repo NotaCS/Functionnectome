@@ -1437,6 +1437,13 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             template_vol = template_vol.astype(bool)
 
             if anatype == "region":
+                # Check if there are regionwise prirs in the H5
+                if "tract_region" not in h5fout or \
+                        "mask_region" not in h5fout or \
+                        len(h5fout["tract_region"]) == 1:
+                    raise KeyError("Sorry, it seems the current priors do not "
+                                   "have regionwise maps available. If you really need them, "
+                                   "do not hesitate and concact me by email or via Github.")
                 hdr = h5fout["tract_region"].attrs["header"]
                 hdr3D = eval(hdr)
                 header3D = nib.Nifti1Header()

@@ -79,8 +79,8 @@ def run_h5maker(outFile, templatePath, dirVoxel, dirRegion, maskRegion):
 
     with h5py.File(outFile, "a") as h5fout:
         # Writting the template
-        template = h5fout.create_dataset('template', template_img.shape, template_img.get_data_dtype(),
-                                         compression="gzip", chunks=shape3D)
+        template = h5fout.require_dataset('template', template_img.shape, template_img.get_data_dtype(),
+                                          compression="gzip", chunks=shape3D)
         try:  # Try to load the volume in the original data type
             template[:] = template_img.get_fdata(dtype=template_img.get_data_dtype())
         except ValueError:

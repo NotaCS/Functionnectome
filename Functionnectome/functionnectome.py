@@ -1539,12 +1539,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             bold_img = nib.load(boldf)
             bold_header = bold_img.header
             bold_affine = bold_img.affine
-            bold_shape = bold_img.shape
             # Checking if the data has proper dimension and orientation
-            if bold_img.ndim == 3:
-                raise ValueError(
-                    "The input NIfTI volume is 3D. The Functionnectome only accepts 4D volumes."
-                )
             flipLR = False
             if not (bold_affine == affine3D).all():
                 if (bold_affine[0] == -affine3D[0]).all():
@@ -1573,6 +1568,15 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     print(bold_affine.astype(int))
                     raise ValueError("Wrong data orientation, or not in MNI152 space.")
             bold_vol = bold_img.get_fdata(dtype="float32")
+            if bold_img.ndim == 3:
+                warnings.warn(
+                    'Input volume is 3D, presumably a statistical map.\nThe Functionnectome is meant to be used with '
+                    '4D volumes, before GLM or other signal analysis. Using 3D maps as input may result in unreliable '
+                    'values in the projection.'
+                )
+                bold_header = None
+                bold_vol = np.expand_dims(bold_vol, -1)
+            bold_shape = bold_vol.shape
             if flipLR:
                 bold_vol = np.flip(bold_vol, 0)
 
@@ -1767,12 +1771,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             bold_img = nib.load(boldf)
             bold_header = bold_img.header
             bold_affine = bold_img.affine
-            bold_shape = bold_img.shape
             # Checking if the data has proper dimension and orientation
-            if bold_img.ndim == 3:
-                raise ValueError(
-                    "The input NIfTI volume is 3D. The Functionnectome only accepts 4D volumes."
-                )
             flipLR = False
             if not (bold_affine == affine3D).all():
                 if (bold_affine[0] == -affine3D[0]).all():
@@ -1800,6 +1799,17 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     print(bold_affine.astype(int))
                     raise ValueError("Wrong data orientation, or not in MNI152 space.")
             bold_vol = bold_img.get_fdata(dtype="float32")
+            if bold_img.ndim == 3:
+                # raise ValueError(
+                #     "The input NIfTI volume is 3D. The Functionnectome only accepts 4D volumes."
+                # )
+                warnings.warn(
+                    'Input volume is 3D, presumably a statistical map.\nThe Functionnectome is meant to be used with '
+                    '4D volumes, before GLM or other signal analysis. Using 3D maps as input may result in unreliable '
+                    'values in the projection.'
+                )
+                bold_header = None
+                bold_vol = np.expand_dims(bold_vol, -1)
             if flipLR:
                 bold_vol = np.flip(bold_vol, 0)
 

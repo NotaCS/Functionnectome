@@ -27,12 +27,14 @@ from pathlib import Path
 
 try:
     import Functionnectome.functionnectome as fun
+    from Functionnectome.functionnectome import PRIORS_H5  # , PRIORS_URL, PRIORS_ZIP
 except ModuleNotFoundError:
     print(
         "The Functionnectome module was not found (probably not installed via pip)."
         " Importing functions from the folder where the current script was saved..."
     )
     import functionnectome as fun
+    from functionnectome import PRIORS_H5  # , PRIORS_URL, PRIORS_ZIP
 
 
 class Functionnectome_GUI(tk.Tk):
@@ -74,9 +76,16 @@ class Functionnectome_GUI(tk.Tk):
         self.nb_parallel_proc = tk.StringVar()
         self.nb_parallel_proc.set("1")
         self.priors = tk.StringVar()  # h5 or nii
-        # self.priors.trace("w", self.activation_h5)  # TODO : uncomment for the v2.0.0
+        self.priors.trace("w", self.activation_h5)
         self.priorsChoice = tk.StringVar()
         self.prior_path_h5 = ''  # Path to the h5 file (used when DL priors)
+        self.DLall = tk.BooleanVar()  # To check if all priors should be manually DLed
+        self.priors_paths = {  # Initialize the dict (with the nii priors empty info)
+            "template": "",
+            "regions": "",
+            "region_pmap": "",
+            "voxel_pmap": "",
+        }
         ipad = 3
         epad = 10
 
@@ -220,24 +229,26 @@ class Functionnectome_GUI(tk.Tk):
         self.lbl4d = tk.Label(
             self.fAna, text="Choice of priors:", font="Helvetica 12 bold"
         )
+        self.lbl4e = tk.Label(
+            self.fAna, text="DL all:", font="Helvetica 12 bold"
+        )
         self.priorH5 = tk.Radiobutton(
             self.fAna, text="One HDF5 file", variable=self.priors, value="h5"
         )
         self.priorNii = tk.Radiobutton(
             self.fAna, text="Multiple NIfTI files", variable=self.priors, value="nii"
         )
-        self.priorsFileList = list(fun.PRIORS_H5)
+        self.priorsFileList = list(PRIORS_H5)
         self.h5files = ttk.Combobox(self.fAna,
                                     values=self.priorsFileList,
                                     textvariable=self.priorsChoice,
                                     state="readonly")
-        self.h5files.state(statespec=["disabled"])  # TODO : remove for the v2.0.0
         self.ana_type.set("voxel")
-        self.h5files.current(0)
+        self.h5files.current(self.priorsFileList.index('V1.D.WB - Whole brain, Deterministic (legacy)'))
         self.buttonDL = tk.Button(
-            self.fAna, text="Manual download", command=self.DLpriors
+            self.fAna, text="Manual download", command=self.manualDLpriors
         )
-        self.buttonDL.config(state="disabled")  # TODO : remove for the v2.0.0
+        self.chkDLall = tk.Checkbutton(self.fAna, variable=self.DLall)
         self.priors.set("h5")
 
         self.fAna.grid(
@@ -261,8 +272,10 @@ class Functionnectome_GUI(tk.Tk):
         self.lbl4d.grid(column=1, row=6, columnspan=2, sticky="W", padx=5, pady=5)
         self.priorH5.grid(column=0, row=7, sticky="W")
         self.priorNii.grid(column=0, row=8, sticky="W")
-        self.h5files.grid(column=1, row=7, sticky="W")
+        self.h5files.grid(column=1, row=7, columnspan=3, sticky="WE")
         self.buttonDL.grid(column=1, row=8)
+        self.chkDLall.grid(column=3, row=8)
+        self.lbl4e.grid(column=2, row=8)
 
         # Bottom buttons
         self.saveBtn = tk.Button(self, text="Save", command=self.choseFileAndSave)
@@ -481,45 +494,51 @@ class Functionnectome_GUI(tk.Tk):
             self.h5files.state(statespec=["disabled"])
             self.buttonDL.config(state="disabled")
 
-    def DLpriors(self):
+    def check_if_running(self, rez, mppool, window):
+        """Check every second if the multiprocessing 'rez' process in 'mppool' is finished."""
+        if not rez.ready():
+            window.update()
+            window.after(1000, self.check_if_running, rez, mppool, window)
+        else:
+            mppool.close()
+            mppool.join()
+            if self.DLall.get():  # meaning the fun.DL_missingH5 function is running
+                self.priors_paths = rez.get()
+            else:  # meaning the fun.Download_H5 function is running
+                self.prior_path_h5 = rez.get()
+            window.destroy()
+
+    def manualDLpriors(self):
         '''
         Download the selected priors (if they are not already downloaded)
         '''
-        def check_if_running(rez, mppool, window):
-            """Check every second if the function is finished."""
-            if not rez.ready():
-                window.update()
-                window.after(1000, check_if_running, rez, mppool, window)
-            else:
-                window.destroy()
-                mppool.close()
-                mppool.join()
-                self.prior_path_h5 = rez.get()
         # First check if there is a json file with the priors path
         currentPriors = self.priorsChoice.get()
         pkgPath = os.path.dirname(__file__)
         jsonPath = os.path.join(pkgPath, "priors_paths.json")
         if os.path.exists(jsonPath):
             with open(jsonPath, "r") as jsonP:
-                priors_paths = json.load(jsonP)
-            priors_paths = fun.updateOldJson(jsonPath, priors_paths)
-        else:  # Create a new dict to store the filepaths, filled below
-            priors_paths = {
-                "template": "",
-                "regions": "",
-                "region_pmap": "",
-                "voxel_pmap": "",
-            }
-        if currentPriors in priors_paths.keys():
-            if os.path.exists(priors_paths[currentPriors]):
-                messagebox.showinfo("Already there", "The selected priors are already available.")
+                self.priors_paths = json.load(jsonP)
+            self.priors_paths = fun.updateOldJson(jsonPath, self.priors_paths)
+        missingH5 = fun.find_missingH5(self.priors_paths)
+        if self.DLall.get() and not missingH5:
+            messagebox.showinfo("Already there", "All the priors have already been previously downloaded.")
+        elif not self.DLall.get() and currentPriors in self.priors_paths.keys():
+            if os.path.exists(self.priors_paths[currentPriors]):
+                messagebox.showinfo("Already there", "The selected priors have already been previously downloaded.")
         else:
+            priorFiles = [f for f in self.priors_paths.values() if os.path.exists(f)]
+            if len(priorFiles):
+                self.home = os.path.dirname(priorFiles[-1])
             prior_dirpath_h5 = filedialog.askdirectory(
                 initialdir=self.home, parent=self, title="Choose where to save the priors"
             )
             if prior_dirpath_h5:
                 pool = mp.Pool(processes=1)
-                res = pool.apply_async(fun.Download_H5, (prior_dirpath_h5, currentPriors))
+                if self.DLall.get():
+                    res = pool.apply_async(fun.DL_missingH5, (self.priors_paths, prior_dirpath_h5))
+                else:
+                    res = pool.apply_async(fun.Download_H5, (prior_dirpath_h5, currentPriors))
                 DLwindow = tk.Toplevel(self)
                 DLwindow.title("Downloading")
                 DLwindow.grab_set()
@@ -534,11 +553,22 @@ class Functionnectome_GUI(tk.Tk):
                 pb.grid(column=0, row=1)
                 pb.start()
                 DLwindow.update()
-                DLwindow.after(1000, check_if_running, res, pool, DLwindow)
-                if os.path.exists(self.prior_path_h5):
-                    priors_paths[currentPriors] = self.prior_path_h5
+                DLwindow.after(1000, self.check_if_running, res, pool, DLwindow)
+                self.wait_window(DLwindow)
+                stillMissing = fun.find_missingH5(self.priors_paths)
+                if os.path.exists(self.prior_path_h5) and not self.DLall.get():
+                    self.priors_paths[currentPriors] = self.prior_path_h5
                     with open(jsonPath, "w") as jsonP:
-                        json.dump(priors_paths, jsonP)
+                        json.dump(self.priors_paths, jsonP)
+                elif self.DLall.get() and not stillMissing:
+                    with open(jsonPath, "w") as jsonP:
+                        json.dump(self.priors_paths, jsonP)
+                else:
+                    messagebox.showwarning(
+                        title="Priors missing",
+                        message="The downloaded files cannot be found.\nCheck the folder you chose and retry.",
+                        parent=self,
+                    )
 
     def get_outDir(self):
         odir = self.outDir.get()

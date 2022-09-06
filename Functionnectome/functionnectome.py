@@ -47,50 +47,50 @@ import pandas as pd
 # %% Information about the priors, shared as gloaba variable. Update here.
 
 PRIORS_INFO = (  # TODO : Fill the URL when available
+    ('V2.D.WB - Whole brain, Deterministic',
+     "https://www.dropbox.com/s/aj84fl3la3yymv7/priors_full_deter3T.h5.zip?dl=1",
+     "priors_full_deter3T.h5.zip",
+     ),
+    ('V2.D.Asso - Association, Deterministic',
+     "https://www.dropbox.com/s/r824b5vk5apvp6o/priors_asso_deter3T.h5.zip?dl=1",
+     "priors_asso_deter3T.h5.zip",
+     ),
+    ('V2.D.Proj - Projection, Deterministic',
+     "https://www.dropbox.com/s/ln8rdh3oyftvrid/priors_proj_deter3T.h5.zip?dl=1",
+     "priors_proj_deter3T.h5.zip",
+     ),
+    ('V2.D.Comm - Commissural, Deterministic',
+     "https://www.dropbox.com/s/xunfqlzaracfp06/priors_comm_deter3T.h5.zip?dl=1",
+     "priors_comm_deter3T.h5.zip",
+     ),
+    ('V2.D.Cereb - Cerebellar, Deterministic',
+     "https://www.dropbox.com/s/do5ou7datoxv7ya/priors_cereb_deter3T.h5.zip?dl=1",
+     "priors_cereb_deter3T.h5.zip",
+     ),
+    ('V2.P.WB - Whole brain, Probabilistic',
+     "https://www.dropbox.com/s/j5a6sh3w7bltuez/priors_full_proba3T.h5.zip?dl=1",
+     "priors_full_proba3T.h5.zip",
+     ),
+    ('V2.P.Asso - Association, Probabilistic',
+     "https://www.dropbox.com/s/yxcs6sjp34io9f1/priors_asso_proba3T.h5.zip?dl=1",
+     "priors_asso_proba3T.h5.zip",
+     ),
+    ('V2.P.Proj - Projection, Probabilistic',
+     "https://www.dropbox.com/s/v71j6q5y7l48qeq/priors_proj_proba3T.h5.zip?dl=1",
+     "priors_proj_proba3T.h5.zip",
+     ),
+    ('V2.P.Comm - Commissural, Probabilistic',
+     "https://www.dropbox.com/s/0ajvcei25j2zf72/priors_comm_proba3T.h5.zip?dl=1",
+     "priors_comm_proba3T.h5.zip",
+     ),
+    ('V2.P.Cereb - Cerebellar, Probabilistic',
+     "https://www.dropbox.com/s/nfq9gh09u4whw72/priors_cereb_proba3T.h5.zip?dl=1",
+     "priors_cereb_proba3T.h5.zip",
+     ),
     ('V1.D.WB - Whole brain, Deterministic (legacy)',
      "https://www.dropbox.com/s/22vix4krs2zgtnt/functionnectome_7TpriorsH5.zip?dl=1",
      "functionnectome_7TpriorsH5.zip",
      ),
-    # ('V2.D.WB - Whole brain, Deterministic',
-    #  "",
-    #  "",
-    #  ),
-    # ('V2.D.Asso - Association, Deterministic',
-    #  "",
-    #  "",
-    #  ),
-    # ('V2.D.Proj - Projection, Deterministic',
-    #  "",
-    #  "",
-    #  ),
-    # ('V2.D.Comm - Commissural, Deterministic',
-    #  "",
-    #  "",
-    #  ),
-    # ('V2.D.Cereb - Cerebellar, Deterministic',
-    #  "",
-    #  "",
-    #  ),
-    # ('V2.P.WB - Whole brain, Probabilistic',
-    #  "",
-    #  "",
-    #  ),
-    # ('V2.P.Asso - Association, Probabilistic',
-    #  "",
-    #  "",
-    #  ),
-    # ('V2.P.Proj - Projection, Probabilistic',
-    #  "",
-    #  "",
-    #  ),
-    # ('V2.P.Comm - Commissural, Probabilistic',
-    #  "",
-    #  "",
-    #  ),
-    # ('V2.P.Cereb - Cerebellar, Probabilistic',
-    #  "",
-    #  "",
-    #  ),
 )
 PRIORS_H5 = tuple(pinfo[0] for pinfo in PRIORS_INFO)
 PRIORS_URL = {pinfo[0]: pinfo[1] for pinfo in PRIORS_INFO}
@@ -125,6 +125,8 @@ def Download_H5(prior_dirpath_h5, priorsName):
     dl_url = PRIORS_URL[priorsName]
     fname = PRIORS_ZIP[priorsName]
     zipname = os.path.join(prior_dirpath_h5, fname)
+    if os.path.exists(zipname):  # If a previous file was left because the process was interrupted
+        os.remove(zipname)
     print("Downloading the priors...")
     with urlopen(dl_url) as response, open(zipname, "wb") as out_file:
         datasize = int(response.getheader("content-length"))
@@ -146,23 +148,26 @@ def Download_H5(prior_dirpath_h5, priorsName):
     return outPath
 
 
-def DL_missingH5(dictPaths, currentH5, h5Dir):
+def find_missingH5(dictPaths):
+    checked_dictPaths = {k: dictPaths[k] for k in dictPaths.keys() if os.path.exists(dictPaths[k])}
+    missingH5 = PRIORS_URL.keys() - checked_dictPaths.keys()
+    return missingH5
+
+
+def DL_missingH5(dictPaths, h5Dir, currentH5=None):
     ''' Download all h5 priors available but still missing in the json'''
-    missingH5 = (
-        PRIORS_URL.keys()
-        - dictPaths.keys()
-        - {currentH5}
-    )
-    for n, priorpath in enumerate(missingH5):
-        print(f"Downloading file {n + 1}/{len(missingH5)}")
-        missH5P = Download_H5(h5Dir, priorpath)
+    missingH5 = find_missingH5(dictPaths) - {currentH5}
+    for n, priorname in enumerate(missingH5):
+        print(f"Downloading file {n + 1}/{len(missingH5)} ({priorname})")
+        missH5P = Download_H5(h5Dir, priorname)
         if os.path.exists(missH5P):
-            dictPaths[priorpath] = missH5P
+            dictPaths[priorname] = missH5P
+    return dictPaths
 
 
 class Ask_hdf5_path(tk.Tk):
     """
-    Ask of the path to the priors in HDF5 file, or ask offer to download them
+    Ask of the path to the priors in HDF5 file, or offer to download them
     Works with a GUI if the Functionnecomte has been launched from the GUI, with command lines otherwise
 
     Returns the path to the HDF5 priors file, or False if the action was canceled
@@ -182,6 +187,9 @@ class Ask_hdf5_path(tk.Tk):
         self.prior_path_h5 = ""  # Where the file path to the priors will be stored
         self.home = os.path.expanduser("~")
         self.dictH5 = dictH5
+        priorFiles = [f for f in self.dictH5.values() if os.path.exists(f)]
+        if len(priorFiles):
+            self.home = os.path.dirname(priorFiles[-1])
         msg = (
             "No HDF5 priors file was found. If you already downloaded it, "
             "select select the file. Otherwise download it."
@@ -211,7 +219,7 @@ class Ask_hdf5_path(tk.Tk):
             self.withdraw()
             self.prior_path_h5 = Download_H5(prior_dirpath_h5, self.priorsName)
             if self.DLall:
-                DL_missingH5(self.dictH5, self.prior_path_h5, prior_dirpath_h5)
+                self.dictH5 = DL_missingH5(self.dictH5, prior_dirpath_h5, self.prior_path_h5)
             self.destroy()
 
     def Btn_select_file(self):
@@ -1131,8 +1139,8 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                 if from_GUI:
                     ask_h5 = Ask_hdf5_path(priorsH5, priors_paths)
                     ask_h5.mainloop()
-                    print(ask_h5.prior_path_h5)
                     h5P = ask_h5.prior_path_h5
+                    priors_paths = ask_h5.dictH5
                 else:
                     askDL = input(
                         "No HDF5 priors file was found. To download it, type 'D' and Enter. "
@@ -1160,7 +1168,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                             if askDLall.upper().strip() in ("O", "A"):
                                 h5P = Download_H5(prior_dirpath_h5, priorsH5)
                                 if askDLall.upper().strip() == "A" and os.path.exists(h5P):
-                                    DL_missingH5(priors_paths, h5P, prior_dirpath_h5)
+                                    priors_paths = DL_missingH5(priors_paths, prior_dirpath_h5, h5P)
                             else:
                                 print("Wrong entry (neither A nor O). Canceled...")
                     elif askDL.upper().strip() == "S":

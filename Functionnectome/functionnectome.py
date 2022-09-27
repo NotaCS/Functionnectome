@@ -16,6 +16,24 @@ converged on the same algorithm, so I might have to fuse them together later...
 """
 
 
+import pandas as pd
+from pathlib import Path
+import nibabel as nib
+import numpy as np
+import h5py
+from tkinter import filedialog
+from tkinter import messagebox
+import tkinter as tk
+from urllib.request import urlopen
+import threading
+import zipfile
+import shutil
+import json
+import multiprocessing
+import warnings
+import time
+import glob
+import sys
 import os
 
 # Setting the number of threads for numpy (before importing numpy)
@@ -25,24 +43,6 @@ os.environ["OPENBLAS_NUM_THREADS"] = str(threads)
 os.environ["MKL_NUM_THREADS"] = str(threads)
 os.environ["VECLIB_MAXIMUM_THREADS"] = str(threads)
 os.environ["NUMEXPR_NUM_THREADS"] = str(threads)
-import sys
-import glob
-import time
-import warnings
-import multiprocessing
-import json
-import shutil
-import zipfile
-import threading
-from urllib.request import urlopen
-import tkinter as tk
-from tkinter import messagebox
-from tkinter import filedialog
-import h5py
-import numpy as np
-import nibabel as nib
-from pathlib import Path
-import pandas as pd
 
 # %% Information about the priors, shared as gloaba variable. Update here.
 
@@ -481,7 +481,7 @@ def updateOldJson(jsonPath, priorsVal):
     of savin the priors paths.
     '''
     if "h5_priors" in priorsVal.keys():
-        priorsVal[PRIORS_H5[0]] = priorsVal["h5_priors"]
+        priorsVal[PRIORS_H5[-1]] = priorsVal["h5_priors"]
         del priorsVal["h5_priors"]
         with open(jsonPath, "w") as jsonP:
             json.dump(priorsVal, jsonP)
@@ -1552,7 +1552,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             if not (bold_affine == affine3D).all():
                 if (bold_affine[0] == -affine3D[0]).all():
                     warnMsgOrient = (
-                        "The orientation of the input 4D volume seems to be in  RAS orientation, i.e."
+                        "The orientation of the input 4D volume seems to be in RAS orientation, i.e."
                         " left/right flipped compared to the orientation of the anatomical priors "
                         "(which should be the MNI_152 space with LAS orientation).\nThe 4D volume "
                         "will be flipped to LAS during the processing but the output will be flipped back "

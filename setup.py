@@ -14,7 +14,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="Functionnectome",
     url="https://github.com/NotaCS/Functionnectome",
-    version="2.0.0",
+    version="2.0.1",
     author="Victor Nozais",
     author_email="nozais.victor@gmail.com",
     description="Package containing all the necessary tools to run the Functionnectome method",
@@ -33,6 +33,7 @@ setuptools.setup(
             "Functionnectome=Functionnectome.functionnectome:main",
             "MakeH5=Functionnectome.makeHDF5prior:main",
             "WhiteRest=Functionnectome.whiteRest:main",
+            "QuickDisco=Functionnectome.quickDisco:main",
         ],
     },
     install_requires=["numpy", "nibabel", "pandas", "h5py", "matplotlib"],

@@ -17,6 +17,7 @@ import sys
 import json
 import argparse
 import fnmatch
+from nibabel.processing import resample_from_to
 
 try:
     import Functionnectome.functionnectome as fun
@@ -37,6 +38,30 @@ class MyParser(argparse.ArgumentParser):  # Used to diplay the help if no argmen
         sys.stderr.write('error: %s\n' % message)
         self.print_help()
         sys.exit(2)
+
+
+def checkOrient(inIm, outShape, outAffine, splineOrder=3):
+    translatIn = inIm.affine[:3, 3]
+    translatOut = outAffine[:3, 3]
+    diagIn = np.diag(inIm.affine)[:3]
+    diagOut = np.diag(outAffine)[:3]
+    if not (np.abs(translatIn) == np.abs(translatOut)).all():
+        raise ValueError('The input file is not in the proper space (probably not in MNI space)')
+    else:
+        if (inIm.affine == outAffine).all():
+            outIm = inIm
+        elif not (np.abs(diagIn) == np.abs(diagIn[0])).all():
+            raise ValueError('The voxels are not isotropic.')
+        else:
+            if diagIn[0] * diagOut[0] < 0:
+                print(
+                    'Warning: The input seems to be in RAS orientation. It has been verted to LAS orientation for '
+                    'compatibility with the white matter priors. The output will be in LAS orientation too.'
+                    'As long as the orientation matrix is properly applied when reading the input or output, '
+                    'there will be no problem.'
+                )
+            outIm = resample_from_to(inIm, (outShape, outAffine), order=splineOrder)
+    return outIm
 
 
 def probaMap_fromROI(roiFile, priorsLoc, priors_type, outFile, maxVal=False, templateFile=None):
@@ -71,7 +96,6 @@ def probaMap_fromROI(roiFile, priorsLoc, priors_type, outFile, maxVal=False, tem
     """
 
     roiIm = nib.load(roiFile)
-    roiVol = roiIm.get_fdata().astype(bool)
 
     h5file = mapDir = priorsLoc
 
@@ -91,17 +115,8 @@ def probaMap_fromROI(roiFile, priorsLoc, priors_type, outFile, maxVal=False, tem
         templShape = templIm.shape
         affine3D = templIm.affine
 
-    # Check if the ROI is in the correct orientation
-    if not (roiIm.affine == affine3D).all():
-        flipLFaffine = roiIm.affine.copy()
-        flipLFaffine[0] = -flipLFaffine[0]
-        if (flipLFaffine == affine3D).all():  # The ROI need to be flipped
-            roiVol = np.flip(roiVol, 0)
-            print("Warning: the ROI was flipped Left/Right")
-        else:
-            raise ValueError(
-                "The orientations of the ROI and of the priors are not compatible"
-            )
+    roiIm = checkOrient(roiIm, templShape, affine3D, 0)
+    roiVol = roiIm.get_fdata().astype(bool)
 
     listVox = np.argwhere(roiVol)
     outMap = np.zeros(templShape)

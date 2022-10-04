@@ -23,11 +23,12 @@ import multiprocessing as mp
 from tkinter import filedialog
 from tkinter import messagebox
 from pathlib import Path
-
+import pkg_resources
 
 try:
     import Functionnectome.functionnectome as fun
     from Functionnectome.functionnectome import PRIORS_H5  # , PRIORS_URL, PRIORS_ZIP
+    version = pkg_resources.require("Functionnectome")[0].version
 except ModuleNotFoundError:
     print(
         "The Functionnectome module was not found (probably not installed via pip)."
@@ -35,6 +36,7 @@ except ModuleNotFoundError:
     )
     import functionnectome as fun
     from functionnectome import PRIORS_H5  # , PRIORS_URL, PRIORS_ZIP
+    version = ''
 
 
 class Functionnectome_GUI(tk.Tk):
@@ -42,7 +44,10 @@ class Functionnectome_GUI(tk.Tk):
         super().__init__()
 
         # self.geometry('600x320')
-        self.title("Functionnectome processing")
+        if version:
+            self.title(f"Functionnectome processing (v{version})")
+        else:
+            self.title("Functionnectome processing")
         self.home = os.path.expanduser("~")
         self.cwd = os.getcwd()  # change to the last chosen folder along the way
         self.bold_paths = []  # List of the paths to the BOLD files
@@ -523,9 +528,12 @@ class Functionnectome_GUI(tk.Tk):
         missingH5 = fun.find_missingH5(self.priors_paths)
         if self.DLall.get() and not missingH5:
             messagebox.showinfo("Already there", "All the priors have already been previously downloaded.")
-        elif not self.DLall.get() and currentPriors in self.priors_paths.keys():
-            if os.path.exists(self.priors_paths[currentPriors]):
-                messagebox.showinfo("Already there", "The selected priors have already been previously downloaded.")
+        elif (
+                not self.DLall.get()
+                and currentPriors in self.priors_paths.keys()
+                and os.path.exists(self.priors_paths[currentPriors])
+        ):
+            messagebox.showinfo("Already there", "The selected priors have already been previously downloaded.")
         else:
             priorFiles = [f for f in self.priors_paths.values() if os.path.exists(f)]
             if len(priorFiles):

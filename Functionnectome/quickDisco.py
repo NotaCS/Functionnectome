@@ -17,6 +17,7 @@ import sys
 import json
 import argparse
 import fnmatch
+import multiprocessing
 from nibabel.processing import resample_from_to
 
 try:
@@ -64,7 +65,47 @@ def checkOrient(inIm, outShape, outAffine, splineOrder=3):
     return outIm
 
 
-def probaMap_fromROI(roiFile, priorsLoc, priors_type, outFile, maxVal=False, templateFile=None):
+def init_worker(ptype, ploc, tshape, mval):
+    global priors_type, priorsLoc, templShape, maxVal
+    priors_type = ptype
+    priorsLoc = ploc
+    templShape = tshape
+    maxVal = mval
+
+
+def probaMapMulti(batchVox):
+    outMap = np.zeros(templShape)
+    if priors_type == "h5":
+        with h5py.File(priorsLoc, "r") as h5fout:
+            for indvox in batchVox:
+                try:
+                    priorMap = h5fout["tract_voxel"][f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"][:]
+                except KeyError:  # The voxel is not part of the current priors. May happen with split priors
+                    continue
+                if maxVal:
+                    outMap = np.max(np.stack((outMap, priorMap)), 0)
+                else:
+                    outMap += priorMap
+    else:
+        for indvox in batchVox:
+            try:
+                mapf = f"probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz"
+                vox_pmap_img = nib.load(os.path.join(priorsLoc, mapf))
+            except FileNotFoundError:
+                mapf = f"probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii"
+                vox_pmap_img = nib.load(os.path.join(priorsLoc, mapf))
+            except KeyError:  # The voxel is not part of the current priors. May happen with split priors
+                continue
+            priorMap = vox_pmap_img.get_fdata()
+            if maxVal:
+                outMap = np.max(np.stack((outMap, priorMap)), 0)
+            else:
+                outMap += priorMap
+    return outMap
+
+
+def probaMap_fromROI(roiFile, priorsLoc, priors_type,
+                     outFile=None, proc=1, maxVal=False, templateFile=None):
     """
     Read the ROI and the associated maps, then create and save the new map
 
@@ -78,12 +119,13 @@ def probaMap_fromROI(roiFile, priorsLoc, priors_type, outFile, maxVal=False, tem
         Type of priors input, either 'h5' or 'nii'.
     outFile : str
         Full file path for the new map to be created.
+    proc : int
+        Number of processes used. If > 1, will run parallel processing
     maxVal : bool
         If true, will return the max value of the priors for each voxel. The output will thus be between 0 and 1.
         Otherwise, returns the sum of the priors.
     templateFile : str, optional
-        DESCRIPTION. Path to the template file defining the shape and orientation. Only needed for 'nii' priors.
-
+        Path to the template file defining the shape and orientation. Only needed for 'nii' priors.
     Raises
     ------
     ValueError
@@ -97,11 +139,9 @@ def probaMap_fromROI(roiFile, priorsLoc, priors_type, outFile, maxVal=False, tem
 
     roiIm = nib.load(roiFile)
 
-    h5file = mapDir = priorsLoc
-
     if priors_type == "h5":
         # First get the shape and the affine of the template used in the priors
-        with h5py.File(h5file, "r") as h5fout:
+        with h5py.File(priorsLoc, "r") as h5fout:
             template_vol = h5fout["template"][:]
             templShape = template_vol.shape
             hdr = h5fout["tract_voxel"].attrs["header"]
@@ -121,33 +161,53 @@ def probaMap_fromROI(roiFile, priorsLoc, priors_type, outFile, maxVal=False, tem
     listVox = np.argwhere(roiVol)
     outMap = np.zeros(templShape)
 
-    if priors_type == "h5":
-        with h5py.File(h5file, "r") as h5fout:
+    if proc == 1:
+        if priors_type == "h5":
+            with h5py.File(priorsLoc, "r") as h5fout:
+                for indvox in listVox:
+                    try:
+                        priorMap = h5fout["tract_voxel"][f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"][:]
+                    except KeyError:  # The voxel is not part of the current priors. May happen with split priors
+                        continue
+                    if maxVal:
+                        outMap = np.max(np.stack((outMap, priorMap)), 0)
+                    else:
+                        outMap += priorMap
+        else:
             for indvox in listVox:
                 try:
-                    priorMap = h5fout["tract_voxel"][f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"][:]
+                    mapf = f"probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz"
+                    vox_pmap_img = nib.load(os.path.join(priorsLoc, mapf))
+                except FileNotFoundError:
+                    mapf = f"probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii"
+                    vox_pmap_img = nib.load(os.path.join(priorsLoc, mapf))
                 except KeyError:  # The voxel is not part of the current priors. May happen with split priors
                     continue
+                priorMap = vox_pmap_img.get_fdata()
                 if maxVal:
                     outMap = np.max(np.stack((outMap, priorMap)), 0)
                 else:
                     outMap += priorMap
-    else:
-        for indvox in listVox:
-            try:
-                mapf = f"probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz"
-                vox_pmap_img = nib.load(os.path.join(mapDir, mapf))
-            except FileNotFoundError:
-                mapf = f"probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii"
-                vox_pmap_img = nib.load(os.path.join(mapDir, mapf))
-            except KeyError:  # The voxel is not part of the current priors. May happen with split priors
-                continue
-            mapVol = vox_pmap_img.get_fdata()
-            outMap += mapVol
+    elif proc > 1:
+        batchVox = np.array_split(listVox, proc)
+        with multiprocessing.Pool(
+            processes=proc,
+            initializer=init_worker,
+            initargs=(priors_type, priorsLoc, templShape, maxVal),
+        ) as pool:
+            out_batch_disco = pool.map_async(probaMapMulti, batchVox)
+            out_batch_disco = out_batch_disco.get()
+        if maxVal:
+            outMap = np.max(np.stack(out_batch_disco), 0)
+        else:
+            outMap = np.sum(np.stack(out_batch_disco), 0)
 
     outIm = nib.Nifti1Image(outMap, affine3D)
-    nib.save(outIm, outFile)
-    return
+    if outFile:
+        nib.save(outIm, outFile)
+        return
+    else:
+        return outIm
 
 
 def main():
@@ -163,8 +223,8 @@ def main():
             priorsOK = True
             h5Labels = {h5[:h5.find(' - ')]: h5 for h5 in h5Priors}
             txtH5 = (
-                "Currently available (downloaded) priors are:\n" +
-                "\n".join([f"{h5l.replace(' - ', ' (') + ')'}" for h5l in h5Labels.values()])
+                "Currently available (downloaded) priors are:\n"
+                + "\n".join([f"{h5l.replace(' - ', ' (') + ')'}" for h5l in h5Labels.values()])
             )
             if len(h5Priors) < len(PRIORS_H5):
                 txtH5 += "\n\n(More priors are available for download on the Functionnectome GUI)"
@@ -183,9 +243,9 @@ def main():
             "Generate a quick disconnectome using a lesion mask as input. Instead of running a tractography "
             "for each diffusion volume of the normative dataset using the lesion as the seed, it uses the "
             "pre-computed connectivity maps from the Functionnectome priors to obtain the disconnectome map.\n"
-            "As for the classical Disconnectome, the lesion should be in the MNI space.\n\n" +
-            txtH5 +
-            "\n\n"
+            "As for the classical Disconnectome, the lesion should be in the MNI space.\n\n"
+            + txtH5
+            + "\n\n"
             "/!\\ Be aware however that this method hasn't been published yet."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter
@@ -210,7 +270,7 @@ def main():
     h5Label = args.priors
     outDir = args.outDir
     if h5Label:
-        h5file = priors_paths[h5Labels[h5Label]]
+        priorsLoc = priors_paths[h5Labels[h5Label]]
     else:
         raise args.error('No priors label were given')
 
@@ -229,7 +289,7 @@ def main():
             raise FileNotFoundError(f'The output ({outDir}) directory does not exists.')
 
         if not os.path.exists(outF):
-            probaMap_fromROI(lesF, h5file, priors_type, outF, maxVal)
+            probaMap_fromROI(lesF, priorsLoc, priors_type, outF, maxVal)
         else:
             print(f'{outF} already exists. Skipping.')
 

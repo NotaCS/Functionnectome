@@ -239,16 +239,15 @@ def checkH5():
             priorsOK = False
     else:
         priorsOK = False
+        txtH5 = "/!\\ No connectivity priors found. Please download them using the Functionnectome GUI."
+        h5Labels = {}
+        priors_paths = {}
     return priorsOK, txtH5, h5Labels, priors_paths
 
 
 def main():
     # First, checking the h5 priors paths in the json
     priorsOK, txtH5, h5Labels, priors_paths = checkH5()
-
-    if not priorsOK:
-        txtH5 = "/!\\ No connectivity priors found. Please download them using the Functionnectome GUI."
-        h5Labels = {}
 
     # Creating the parser (with indication of the available priors)
     parser = MyParser(

@@ -42,6 +42,10 @@ class MyParser(argparse.ArgumentParser):  # Used to diplay the help if no argmen
 
 
 def checkOrient(inIm, outShape, outAffine, splineOrder=3):
+    """
+    Checks and modify the left/right orientation of the input file so that it matches the expected
+    output (from outShape and outAffine). Will even resample of the volume if there is a scale issue.
+    """
     translatIn = inIm.affine[:3, 3]
     translatOut = outAffine[:3, 3]
     diagIn = np.diag(inIm.affine)[:3]
@@ -56,8 +60,9 @@ def checkOrient(inIm, outShape, outAffine, splineOrder=3):
         else:
             if diagIn[0] * diagOut[0] < 0:
                 print(
-                    'Warning: The input seems to be in RAS orientation. It has been verted to LAS orientation for '
-                    'compatibility with the white matter priors. The output will be in LAS orientation too.'
+                    'Warning: The input seems to be in RAS orientation. It has been converted to LAS orientation for '
+                    'compatibility with the white matter priors (i.e., the left and right have been flipped). '
+                    'The output will be in LAS orientation too.'
                     'As long as the orientation matrix is properly applied when reading the input or output, '
                     'there will be no problem.'
                 )
@@ -210,8 +215,10 @@ def probaMap_fromROI(roiFile, priorsLoc, priors_type,
         return outIm
 
 
-def main():
-    # First, checking the h5 priors paths in the json
+def checkH5():
+    """
+    Check and list the available Functionnectome priors to be used for quickDisco
+    """
     pkgPath = os.path.dirname(__file__)
     jsonPath = os.path.join(pkgPath, "priors_paths.json")
     if os.path.exists(jsonPath):
@@ -232,6 +239,12 @@ def main():
             priorsOK = False
     else:
         priorsOK = False
+    return priorsOK, txtH5, h5Labels, priors_paths
+
+
+def main():
+    # First, checking the h5 priors paths in the json
+    priorsOK, txtH5, h5Labels, priors_paths = checkH5()
 
     if not priorsOK:
         txtH5 = "/!\\ No connectivity priors found. Please download them using the Functionnectome GUI."

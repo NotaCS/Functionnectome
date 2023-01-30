@@ -754,6 +754,8 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
                 )
                 with open(logFile, "a") as log:
                     log.write(logtxt)
+
+            pmapFound = True
             try:
                 mapf = f"probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz"
                 vox_pmap_img = nib.load(os.path.join(dict_var["pmapStore"], mapf))
@@ -764,14 +766,16 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
                 except FileNotFoundError:
                     logtxt = (
                         f"Voxel {indvox[0]}_{indvox[1]}_{indvox[2]} does not "
-                        "have an associated pmap. Closing the process...\n"
+                        "have an associated pmap.\n"
                     )
+                    pmapFound = False
                     with open(logFile, "a") as log:
                         log.write(logtxt)
-                    return None
+                    # return None
             if ii == 0:
                 sum_pmap = np.zeros(dict_var["templateShape"], dtype="float32")
-            sum_pmap += vox_pmap_img.get_fdata(dtype="float32")
+            if pmapFound:
+                sum_pmap += vox_pmap_img.get_fdata(dtype="float32")
     elif dict_var["prior_type"] == "h5":
         with h5py.File(dict_var["pmapStore"], "r") as h5fout:
             for ii, indvox in enumerate(ind_voxels_batch):
@@ -786,9 +790,7 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
                 if ii == 0:
                     sum_pmap = np.zeros(
                         dict_var["templateShape"],
-                        dtype=h5fout["tract_voxel"][
-                            f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"
-                        ].dtype,
+                        dtype='f',
                     )
                 try:
                     sum_pmap += h5fout["tract_voxel"][
@@ -797,11 +799,12 @@ def Sum_voxelwise_pmaps(ind_voxels_batch):
                 except KeyError:
                     logtxt = (
                         f"Voxel {indvox[0]}_{indvox[1]}_{indvox[2]} does not "
-                        "have an associated pmap. Closing the process...\n"
+                        "have an associated pmap.\n"
                     )
                     with open(logFile, "a") as log:
                         log.write(logtxt)
-                    return None
+                    continue
+                    # return None
     return sum_pmap
 
 
@@ -998,12 +1001,15 @@ def Voxelwise_functionnectome2(batch_num):
                         )
                         with open(logFile, "a") as log:
                             log.write(logtxt)
-                    vox_pmap = h5fout["tract_voxel"][
-                        f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"
-                    ][:]
-                    shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(
-                        shared_2D_bold_np, vox_pmap[mask]
-                    )
+                    try:
+                        vox_pmap = h5fout["tract_voxel"][
+                            f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"
+                        ][:]
+                        shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(
+                            shared_2D_bold_np, vox_pmap[mask]
+                        )
+                    except KeyError:
+                        shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.zeros(nbTR, dtype='f')
         elif dict_var["prior_type"] == "nii":
             for ii, indvox in enumerate(batch_vox):
                 if ii % 100 == 0:  # Check the progress every 100 steps
@@ -1013,16 +1019,24 @@ def Voxelwise_functionnectome2(batch_num):
                         log.write(logtxt)
                 # Load the probability map of the current voxel, combine it with the functional signal,
                 # and add it to the results
+                pmapFound = True
                 try:
                     mapf = f"probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz"
                     vox_pmap_img = nib.load(os.path.join(dict_var["pmapStore"], mapf))
                 except FileNotFoundError:
                     mapf = f"probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii"
                     vox_pmap_img = nib.load(os.path.join(dict_var["pmapStore"], mapf))
-                vox_pmap = vox_pmap_img.get_fdata(dtype="float32")
-                shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(
-                    shared_2D_bold_np, vox_pmap[mask]
-                )
+                except FileNotFoundError:
+                    pmapFound = False
+                if pmapFound:
+                    vox_pmap = vox_pmap_img.get_fdata(dtype="float32")
+                    shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.dot(
+                        shared_2D_bold_np, vox_pmap[mask]
+                    )
+                else:
+                    shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.zeros(
+                        nbTR, dtype="f"
+                    )
     else:  # sum of pmaps was not done beforehand, so it will be done here and directly applied
         if dict_var["prior_type"] == "h5":
             with h5py.File(dict_var["pmapStore"], "r") as h5fout:
@@ -1069,7 +1083,7 @@ def Voxelwise_functionnectome2(batch_num):
                     shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = (
                         np.dot(shared_2D_bold_np, selected_p) / sum_p
                     )
-                else:
+                else:  # Maybe I could just skip this instead of inputing zeros?
                     shared4Dout_np[indvox[0], indvox[1], indvox[2], :] = np.zeros(
                         nbTR, dtype="f"
                     )
@@ -1708,7 +1722,13 @@ def run_functionnectome(settingFilePath, from_GUI=False):
 
             if mask_path:
                 voxel_mask_img = nib.load(mask_path)
+                mask_affine = voxel_mask_img.affine
                 voxel_mask = voxel_mask_img.get_fdata().astype(bool)
+                if not (mask_affine == affine3D).all():  # Check the orientation of the mask
+                    if (mask_affine[0] == -affine3D[0]).all():
+                        voxel_mask = np.flip(voxel_mask, 0)
+                    else:
+                        raise ValueError("Wrong mask orientation, or not in MNI152 space (2x2x2 mm3).")
                 voxel_mask *= template_vol
             else:
                 print("No mask given => using all voxels... Not a super good idea.")

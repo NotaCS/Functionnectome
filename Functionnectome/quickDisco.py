@@ -239,7 +239,8 @@ def checkH5():
             priorsOK = False
     else:
         priorsOK = False
-        txtH5 = "/!\\ No connectivity priors found. Please download them using the Functionnectome GUI."
+        txtH5 = ("/!\\ No connectivity priors found. Please download them using the Functionnectome"
+                 " GUI or give the full path to a .h5 priors file.")
         h5Labels = {}
         priors_paths = {}
     return priorsOK, txtH5, h5Labels, priors_paths
@@ -264,9 +265,10 @@ def main():
     )
     parser.add_argument("-i", "--inFiles", help="Path to the input lesion files.",
                         required=True, nargs='+')
-    parser.add_argument("-p", "--priors", help="Label of the connectivity priors to use for the analysis"
-                        " (available labels: " + " ".join(h5Labels.keys()) + ").",
-                        required=True, choices=list(h5Labels.keys()), metavar="PRIORS_LABEL")
+    parser.add_argument("-p", "--priors", help=("Label of the connectivity priors, "
+                                                "or full path to the priors file, to use for the analysis"
+                                                " (available labels: " + " ".join(h5Labels.keys()) + ")."),
+                        required=True, metavar="PRIORS_LABEL/PATH")
     parser.add_argument("-o", "--outDir", help="Path to the directory (or folder) "
                         "where the disconnectomes will be stored. If none is given, save them in the same "
                         "folder as their corresponding input (with 'qdisco_' as prefix).")
@@ -279,12 +281,14 @@ def main():
     maxVal = True
 
     lesionFiles = args.inFiles
-    h5Label = args.priors
+    h5Loc = args.priors
     outDir = args.outDir
-    if h5Label:
-        priorsLoc = priors_paths[h5Labels[h5Label]]
+    if h5Loc in list(h5Labels.keys()):
+        priorsLoc = priors_paths[h5Labels[h5Loc]]
+    elif os.path.splitext(h5Loc)[-1] == ".h5" and os.path.exists(h5Loc):
+        priorsLoc = h5Loc
     else:
-        raise args.error('No priors label were given')
+        raise parser.error('No correct priors label or path were given')
 
     for lnum, lesF in enumerate(lesionFiles):
         print(f'{lnum + 1}/{len(lesionFiles)}')
@@ -301,7 +305,7 @@ def main():
             raise FileNotFoundError(f'The output ({outDir}) directory does not exists.')
 
         if not os.path.exists(outF):
-            probaMap_fromROI(lesF, priorsLoc, priors_type, outF, maxVal)
+            probaMap_fromROI(lesF, priorsLoc, priors_type, outF, maxVal=maxVal)
         else:
             print(f'{outF} already exists. Skipping.')
 

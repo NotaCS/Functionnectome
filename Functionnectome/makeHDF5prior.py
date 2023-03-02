@@ -4,6 +4,10 @@
 Created on Wed May 27 10:43:05 2020
 
 @author: nozais
+
+This script is used to transform the functionnectome priors from several nifti files
+to one HDF5 (.h5) file. The original files can be created using the scil_make_priors_functionnectome.py
+script from my branch of scilpy (https://github.com/NotaCS/scilpy)
 """
 
 import os

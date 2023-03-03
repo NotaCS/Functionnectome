@@ -1589,7 +1589,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     print("\nInput 4D volume's orientation:")
                     print(bold_affine.astype(int))
                     raise ValueError("Wrong data orientation, or not in MNI152 space.")
-            bold_vol = bold_img.get_fdata(dtype="float32")
+            bold_vol = bold_img.get_fdata(caching='unchanged', dtype="float32")
             if bold_img.ndim == 3:
                 warnings.warn(
                     'Input volume is 3D, presumably a statistical map.\nThe Functionnectome is meant to be used with '
@@ -1826,7 +1826,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     print("Input 4D volume's orientation:")
                     print(bold_affine.astype(int))
                     raise ValueError("Wrong data orientation, or not in MNI152 space.")
-            bold_vol = bold_img.get_fdata(dtype="float32")
+            bold_vol = bold_img.get_fdata(caching='unchanged', dtype="float32")
             if bold_img.ndim == 3:
                 # raise ValueError(
                 #     "The input NIfTI volume is 3D. The Functionnectome only accepts 4D volumes."

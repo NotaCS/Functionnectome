@@ -1945,7 +1945,11 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             time.sleep(5)
             sum_pmap4D_img = sum_pmap4D_all = None
 
-    print(f"Total run time : {time.time()-st}")
+    et = int(time.time() - st)
+    et_h = et // 3600
+    et_min = et % 3600 // 60
+    et_sec = et % 3600 % 60
+    print(f"Total run time : {et_h}h {et_min}min {et_sec}sec (= {et} sec)")
 
 
 # %% Run the code if the script is called directly, the path to the setting file must be given as argument

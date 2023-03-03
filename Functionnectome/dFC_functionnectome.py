@@ -6,7 +6,10 @@ Created on Tue Feb 28 15:57:49 2023
 @author: Victor Nozais
 
 Transform a functionnectome 4D volume into a dynamical functional connectivity
-functionnectome 4D volume (comparable to TW-dFC)
+functionnectome 4D volume (comparable to TW-dFC).
+
+EXTREMELY SLOOOOOW...
+
 """
 
 import nibabel as nib
@@ -15,11 +18,14 @@ import h5py
 from scipy.spatial.distance import cdist
 import multiprocessing
 import argparse
+import time
+import os
+from Functionnectome.quickDisco import checkH5
 
 
 # %%
 
-def _build_arg_parser():
+def _build_arg_parser(h5L):
     p = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
                                 description=__doc__)
     # Required argument
@@ -29,9 +35,13 @@ def _build_arg_parser():
     p.add_argument('-gm', '--gm_mask',
                    required=True,
                    help='Path of the grey matter mask used in the analysis (.nii, nii.gz).')
-    p.add_argument('-wp', 'wm_priors',
+    p.add_argument('-wp', '--wm_priors',
                    required=True,
-                   help='Path to the priors file (.h5) used in the analysis.')
+                   help=(
+                       'Path to the priors file (.h5) used in the analysis, or label to the '
+                       'corresponding priors (if set-up for the Functionnectome).\n'
+                       '(available labels: ' + ' '.join(h5L.keys()) + ").")
+                   )
     p.add_argument('-w', '--window_size',
                    type=int,
                    required=True,
@@ -45,6 +55,9 @@ def _build_arg_parser():
                    default=1,
                    type=int,
                    help="Number of (parallel) processes to launch")
+    p.add_argument('-v', '--verbose',
+                   action='store_true',
+                   help='Print the advancement evey 100 voxel processed')
     return p
 
 
@@ -53,6 +66,8 @@ def run_dFC_funtome(vox_list):
     ts_out = np.zeros((len(vox_list), len_dFC))
     with h5py.File(priorsLoc, "r") as h5fout:
         for ind_num, indvox in enumerate(vox_list):
+            if verb and not ind_num % 100:
+                print(f'voxel {ind_num} of {len(vox_list)}')  # TODO: remove
             ts_funtome = funtome_vol[indvox]
             try:
                 priorMap = h5fout["tract_voxel"][f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"][:]
@@ -63,55 +78,87 @@ def run_dFC_funtome(vox_list):
                 ts_funtome_w = ts_funtome[step: step + windowSize]
                 ts_gm_w = funtome_vol[gm_mask, step: step + windowSize]
                 fc_w = 1 - cdist(ts_funtome_w.reshape(1, -1), ts_gm_w, metric='correlation')
-                z_fc_w = np.arctanh(fc_w)  # Fisher transform
-                fc_average = (weights * z_fc_w).sum() / len(weights)
+                # z_fc_w = np.arctanh(fc_w)  # Fisher transform -> Bad results! :(
+                # z_fc_average = (weights * z_fc_w).sum() / len(weights)
+                # fc_average = np.tanh(z_fc_average)  # back to "correlation" values
+                fc_average = (weights * fc_w).sum() / len(weights)
                 ts_out[ind_num, step] = fc_average
     return ts_out
 
 
-def init_worker(gm, bold, bold_shape, winSize, pLoc):
-    global funtome_vol, gm_mask, windowSize, priorsLoc
+def init_worker(gm, bold, bold_shape, winSize, pLoc, v):
+    global funtome_vol, gm_mask, windowSize, priorsLoc, verb
     funtome_vol = np.frombuffer(bold, "f").reshape(bold_shape)
     gm_mask = gm
     windowSize = winSize
     priorsLoc = pLoc
+    verb = v
 
 
 def main():
-    global gm_mask, funtome_vol, windowSize, priorsLoc
+    global gm_mask, funtome_vol, windowSize, priorsLoc, verb
 
-    parser = _build_arg_parser()
+    st = time.time()
+
+    _, _, h5Labels, priors_paths = checkH5()
+    parser = _build_arg_parser(h5Labels)
     args = parser.parse_args()
+    # inArgs = ['-i',
+    #           '/Users/victor/Desktop/test funtome/voxelwise_analysis/small_fMRI/functionnectome.nii.gz',
+    #           '-gm',
+    #           '/Users/victor/Dropbox (GIN)/Thèse/Collab_Cacciola/gm_mask_arcuate_L.nii.gz',
+    #           '-wp',
+    #           '/Users/victor/Dropbox (GIN)/Thèse/Collab_Cacciola/priors_arcuate_L.h5',
+    #           '-w',
+    #           '10',
+    #           '-o',
+    #           '/Users/victor/Desktop/test funtome/dFC_small_funtome_multi.nii.gz',]
+    # '-p',
+    # '6']
+    # args = parser.parse_args(inArgs)
 
     funtome_f = args.in_functionnectome
     gm_f = args.gm_mask
-    priorsLoc = args.wm_priors
+    h5Loc = args.wm_priors
+    if h5Loc in list(h5Labels.keys()):
+        priorsLoc = priors_paths[h5Labels[h5Loc]]
+    elif os.path.splitext(h5Loc)[-1] == ".h5" and os.path.exists(h5Loc):
+        priorsLoc = h5Loc
+    else:
+        raise parser.error('No correct priors label or path were given')
     windowSize = args.window_size
     out_f = args.output_file
     proc = args.process
+    verb = args.verbose
 
     gm_mask = nib.load(gm_f).get_fdata().astype(bool)
     funtome_im = nib.load(funtome_f)
-    print('Loading functionnectome file')
+    if verb:
+        print('Loading functionnectome file')
     funtome_vol = funtome_im.get_fdata(caching='unchanged', dtype='f')
+    funtome_signal = np.invert(np.all(np.equal(funtome_vol[..., 0, None], funtome_vol), -1))  # Find non-constant voxels
+    # funtome_signal = funtome_vol.std(-1).astype(bool)  # Eqyuivalent to the above line, but slower
+    gm_mask = gm_mask * funtome_signal  # !!! Can change absolute values in the weighted average between subjects
     funtome_shape = funtome_vol.shape
+    len_dFC = funtome_shape[-1] + 1 - windowSize  # Nb of time-points in the output
+    dFC_funtome = np.zeros(funtome_shape[:-1] + (len_dFC,))
 
     if windowSize > funtome_im.shape[-1]:
         raise ValueError('The sliding window is bigger that the total volume.')
     if windowSize < 1:
         raise ValueError('The sliding window size is lower than 1.')
 
-    dFC_funtome = np.zeros(funtome_shape)
     with h5py.File(priorsLoc, "r") as h5fout:
         template_vol = h5fout["template"][:].astype(bool)
+        template_vol = template_vol * funtome_signal
     listVox = np.argwhere(template_vol)
 
-    print('Starting process')
+    if verb:
+        print('Starting process')
     if proc == 1:
         listInd = tuple(listVox.T)  # like np.where
         listVox = [tuple(ind) for ind in listVox]  # tuple-ing
         ts_dFC = run_dFC_funtome(listVox)
-        dFC_funtome = np.zeros(funtome_shape)
         # dFC_funtome[np.where(template_vol)] = ts_dFC
         dFC_funtome[listInd] = ts_dFC
     elif proc > 1:
@@ -125,7 +172,7 @@ def main():
         with multiprocessing.Pool(
             processes=proc,
             initializer=init_worker,
-            initargs=(gm_mask, bold_shared, funtome_shape, windowSize, priorsLoc),
+            initargs=(gm_mask, bold_shared, funtome_shape, windowSize, priorsLoc, verb),
         ) as pool:
             poolRes = pool.map_async(
                 run_dFC_funtome, vox_batches
@@ -133,7 +180,7 @@ def main():
             res_batches = poolRes.get()
             for ind_tupled_batch, batch_res in zip(vox_batches, res_batches):
                 ind_arg_batch = np.array(ind_tupled_batch)  # like np.argwhere
-                ind_vox_batch = tuple(ind_arg_batch.T)  # line np.where
+                ind_vox_batch = tuple(ind_arg_batch.T)  # like np.where
                 dFC_funtome[ind_vox_batch] = batch_res
     else:
         raise ValueError("Number of parallel processing should be 1 or higher.")
@@ -141,6 +188,13 @@ def main():
     out_im = nib.Nifti1Image(dFC_funtome, funtome_im.affine)
     out_im.header['pixdim'] = funtome_im.header['pixdim']
     nib.save(out_im, out_f)
+    et = int(time.time() - st)
+    et_h = et // 3600
+    et_min = et % 3600 // 60
+    et_sec = et % 3600 % 60
+    print(f'Elapsed time: {et_h}h {et_min}min {et_sec}sec (= {et} sec)')
+
+# %%
 
 
 if __name__ == "__main__":

@@ -34,6 +34,7 @@ setuptools.setup(
             "MakeH5=Functionnectome.makeHDF5prior:main",
             "WhiteRest=Functionnectome.whiteRest:main",
             "QuickDisco=Functionnectome.quickDisco:main",
+            "dFC_Fun=Functionnectome.dFC_functionnectome:main"
         ],
     },
     install_requires=["numpy", "nibabel", "pandas", "h5py", "matplotlib"],

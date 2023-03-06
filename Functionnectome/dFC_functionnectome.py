@@ -8,7 +8,7 @@ Created on Tue Feb 28 15:57:49 2023
 Transform a functionnectome 4D volume into a dynamical functional connectivity
 functionnectome 4D volume (comparable to TW-dFC).
 
-EXTREMELY SLOOOOOW...
+A bit faster now...
 
 """
 
@@ -21,6 +21,7 @@ import argparse
 import time
 import os
 from Functionnectome.quickDisco import checkH5
+# import numexpr as ne
 
 
 # %%
@@ -61,13 +62,92 @@ def _build_arg_parser(h5L):
     return p
 
 
+def correl_all(A, B):
+    '''
+    Correlate each time-window beetween A and B. Much faster (X5) than using cdist.
+    But may be more RAM hungry.
+
+    A = (window, time)
+    B = (voxel, window, time)
+
+    C = (voxel, window)
+
+    '''
+    A = np.expand_dims(A, 0)
+    Aresiduals = A - A.mean(-1, keepdims=True)
+    Bresiduals = B - B.mean(-1, keepdims=True)
+
+    Aresidual_sqsums = (Aresiduals**2).sum(-1, keepdims=True)
+    Bresidual_sqsums = (Bresiduals**2).sum(-1, keepdims=True)
+
+    covs = (Aresiduals * Bresiduals).sum(-1)
+
+    norm_prods = np.sqrt((Aresidual_sqsums * Bresidual_sqsums).sum(-1))
+
+    C = covs / norm_prods
+    return C
+
+
+# def correl_all_numexpr(A, B):
+#     '''
+#     Correlate each time-window beetween A and B
+#     Should be faster than the non-numexpr function, but doesn't appear to be...
+#     A = (window, time)
+#     B = (voxel, window, time)
+
+#     C = (voxel, window)
+
+#     '''
+#     A = np.expand_dims(A, 0)
+#     Amean = A.mean(-1, keepdims=True)
+#     Bmean = B.mean(-1, keepdims=True)
+#     Aresiduals = ne.evaluate('A - Amean')
+#     Bresiduals = ne.evaluate('B - Bmean')
+
+#     Aresidual_sqsums = np.expand_dims(ne.evaluate('sum(Aresiduals**2, 2)'), -1)
+#     Bresidual_sqsums = np.expand_dims(ne.evaluate('sum(Bresiduals**2, 2)'), -1)
+
+#     covs = ne.evaluate('sum(Aresiduals * Bresiduals, 2)')
+
+#     norm_prods = ne.evaluate('sum(Aresidual_sqsums * Bresidual_sqsums, 2)')
+#     norm_prods = ne.evaluate('sqrt(norm_prods)')
+
+#     C = ne.evaluate('covs / norm_prods')
+#     return C
+
+
+def run_dFC_funtome_all(vox_list):
+    ''' Vectorise the sliding window operation and the correlation computation '''
+    len_dFC = funtome_vol.shape[-1] + 1 - windowSize  # Nb of time-points in the output
+    ts_out = np.zeros((len(vox_list), len_dFC))
+    # Create a matrice of indexes with the time indexes for each time window per line
+    mat_windows = np.array(list(range(windowSize)) * len_dFC).reshape(len_dFC, windowSize)
+    mat_windows += np.arange(len_dFC).reshape((len_dFC, 1))  # incrementing 1 index per line
+    gm_ts = funtome_vol[gm_mask]  # Time-series of all gm voxels
+    mat_win_gm_ts = gm_ts[:, mat_windows]
+    with h5py.File(priorsLoc, "r") as h5fout:
+        for ind_num, indvox in enumerate(vox_list):
+            if verb and not ind_num % 100:
+                print(f'voxel {ind_num} of {len(vox_list)}')
+            ts_funtome = funtome_vol[indvox]
+            try:
+                priorMap = h5fout["tract_voxel"][f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"][:]
+            except KeyError:
+                continue
+            mat_win_ts = ts_funtome[mat_windows]  # ts of all the time windows in 1 matrix
+            mat_fc = correl_all(mat_win_ts, mat_win_gm_ts)
+            weights = priorMap[gm_mask].reshape(-1, 1)
+            ts_out[ind_num] = (mat_fc * weights).sum(0) / len(weights)
+    return ts_out
+
+
 def run_dFC_funtome(vox_list):
     len_dFC = funtome_vol.shape[-1] + 1 - windowSize  # Nb of time-points in the output
     ts_out = np.zeros((len(vox_list), len_dFC))
     with h5py.File(priorsLoc, "r") as h5fout:
         for ind_num, indvox in enumerate(vox_list):
             if verb and not ind_num % 100:
-                print(f'voxel {ind_num} of {len(vox_list)}')  # TODO: remove
+                print(f'voxel {ind_num} of {len(vox_list)}')
             ts_funtome = funtome_vol[indvox]
             try:
                 priorMap = h5fout["tract_voxel"][f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"][:]
@@ -158,7 +238,7 @@ def main():
     if proc == 1:
         listInd = tuple(listVox.T)  # like np.where
         listVox = [tuple(ind) for ind in listVox]  # tuple-ing
-        ts_dFC = run_dFC_funtome(listVox)
+        ts_dFC = run_dFC_funtome_all(listVox)
         # dFC_funtome[np.where(template_vol)] = ts_dFC
         dFC_funtome[listInd] = ts_dFC
     elif proc > 1:
@@ -175,7 +255,7 @@ def main():
             initargs=(gm_mask, bold_shared, funtome_shape, windowSize, priorsLoc, verb),
         ) as pool:
             poolRes = pool.map_async(
-                run_dFC_funtome, vox_batches
+                run_dFC_funtome_all, vox_batches
             )
             res_batches = poolRes.get()
             for ind_tupled_batch, batch_res in zip(vox_batches, res_batches):
@@ -192,7 +272,7 @@ def main():
     et_h = et // 3600
     et_min = et % 3600 // 60
     et_sec = et % 3600 % 60
-    print(f'Elapsed time: {et_h}h {et_min}min {et_sec}sec (= {et} sec)')
+    print(f'Process over.\nElapsed time: {et_h}h {et_min}min {et_sec}sec (= {et} sec)')
 
 # %%
 

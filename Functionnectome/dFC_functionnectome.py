@@ -19,7 +19,7 @@ import multiprocessing
 import argparse
 import time
 import os
-from Functionnectome.quickDisco import checkH5
+from Functionnectome.quickDisco import checkH5, checkOrient_load
 # from scipy.spatial.distance import cdist
 # from numba import njit
 # import numexpr as ne
@@ -248,20 +248,19 @@ def main():
 
     _, _, h5Labels, priors_paths = checkH5()
     parser = _build_arg_parser(h5Labels)
-    args = parser.parse_args()
     # inArgs = ['-i',
-    #           '/Users/victor/Desktop/test funtome/voxelwise_analysis/small_fMRI/functionnectome.nii.gz',
+    #           '/Users/victor/Dropbox (GIN)/Thèse/Collab_Cacciola/files/functionnectome100.nii.gz',
     #           '-gm',
-    #           '/Users/victor/Dropbox (GIN)/Thèse/Collab_Cacciola/gm_mask_arcuate_L.nii.gz',
+    #           '/Users/victor/Dropbox (GIN)/Thèse/Collab_Cacciola/files/left_functionnectome_mask.nii.gz',
     #           '-wp',
-    #           '/Users/victor/Dropbox (GIN)/Thèse/Collab_Cacciola/priors_arcuate_L.h5',
+    #           '/Users/victor/Dropbox (GIN)/Thèse/Collab_Cacciola/files/priors_arcuate_L.h5',
     #           '-w',
     #           '10',
     #           '-o',
-    #           '/Users/victor/Desktop/test funtome/dFC_small_funtome_multi.nii.gz',]
-    # '-p',
-    # '6']
+    #           '/Users/victor/Desktop/test funtome/dFC_small_funtome_arcuate.nii.gz',]
+    # inArgs += ['-p', '6']
     # args = parser.parse_args(inArgs)
+    args = parser.parse_args()
 
     funtome_f = args.in_functionnectome
     gm_f = args.gm_mask
@@ -277,19 +276,39 @@ def main():
     proc = args.process
     verb = args.verbose
 
-    gm_mask = nib.load(gm_f).get_fdata().astype(bool)
+    if os.path.exists(out_f):
+        raise FileExistsError('Output file already exists.')
+
+    # Get the template info
+    with h5py.File(h5Loc, "r") as h5fout:
+        template_vol = h5fout["template"][:]
+        templShape = template_vol.shape
+        hdr = h5fout["tract_voxel"].attrs["header"]
+        hdr3D = eval(hdr)
+        affine3D = np.stack([hdr3D['srow_x'],
+                             hdr3D['srow_y'],
+                             hdr3D['srow_z'],
+                             [0, 0, 0, 1]])
+
+    gm_mask_im = nib.load(gm_f)
+    gm_mask_im = checkOrient_load(gm_mask_im, templShape, affine3D, 0)
+    gm_mask = gm_mask_im.get_fdata().astype(bool)
+
     funtome_im = nib.load(funtome_f)
     if verb:
         print('Loading functionnectome file')
+    funtome_shape = templShape + (funtome_im.shape[-1],)
+    funtome_im = checkOrient_load(funtome_im, funtome_shape, affine3D)
     funtome_vol = funtome_im.get_fdata(caching='unchanged', dtype='f')
     funtome_signal = np.invert(np.all(np.equal(funtome_vol[..., 0, None], funtome_vol), -1))  # Find non-constant voxels
     # funtome_signal = funtome_vol.std(-1).astype(bool)  # Eqyuivalent to the above line, but slower
     gm_mask = gm_mask * funtome_signal  # !!! Can change absolute values in the weighted average between subjects
-    funtome_shape = funtome_vol.shape
+    if not gm_mask.sum():  # No remaining voxels in the mask
+        raise ValueError('No functional signal ')
     len_dFC = funtome_shape[-1] + 1 - windowSize  # Nb of time-points in the output
     dFC_funtome = np.zeros(funtome_shape[:-1] + (len_dFC,))
 
-    if windowSize > funtome_im.shape[-1]:
+    if windowSize > funtome_shape[-1]:
         raise ValueError('The sliding window is bigger that the total volume.')
     if windowSize < 1:
         raise ValueError('The sliding window size is lower than 1.')

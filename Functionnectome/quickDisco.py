@@ -41,7 +41,7 @@ class MyParser(argparse.ArgumentParser):  # Used to diplay the help if no argmen
         sys.exit(2)
 
 
-def checkOrient(inIm, outShape, outAffine, splineOrder=3):
+def checkOrient_load(inIm, outShape, outAffine, splineOrder=3, verbose=False):
     """
     Checks and modify the left/right orientation of the input file so that it matches the expected
     output (from outShape and outAffine). Will even resample of the volume if there is a scale issue.
@@ -59,14 +59,22 @@ def checkOrient(inIm, outShape, outAffine, splineOrder=3):
             raise ValueError('The voxels are not isotropic.')
         else:
             if diagIn[0] * diagOut[0] < 0:
-                print(
-                    'Warning: The input seems to be in RAS orientation. It has been converted to LAS orientation for '
-                    'compatibility with the white matter priors (i.e., the left and right have been flipped). '
-                    'The output will be in LAS orientation too.'
-                    'As long as the orientation matrix is properly applied when reading the input or output, '
-                    'there will be no problem.'
-                )
-            outIm = resample_from_to(inIm, (outShape, outAffine), order=splineOrder)
+                if verbose:
+                    print(
+                        'Warning: The input seems to be in RAS orientation. It has been converted to LAS orientation '
+                        'for compatibility with the white matter priors (i.e., the left and right have been flipped). '
+                        'The output will be in LAS orientation too.'
+                        'As long as the orientation matrix is properly applied when reading the input or output, '
+                        'there will be no problem.'
+                    )
+            if (np.abs(diagIn) == np.abs(diagOut)).all():  # Just need a flip
+                outVol = np.flip(inIm.get_fdata(caching='unchanged').astype(inIm.get_data_dtype()))
+                outIm = nib.Nifti1Image(outVol, outAffine)
+                outIm.header['pixdim'][4] = inIm.header['pixdim'][4]  # Copy of the time resolution
+            else:
+                if verbose:
+                    print('Resampling the image to the output resolution.')
+                outIm = resample_from_to(inIm, (outShape, outAffine), order=splineOrder)
     return outIm
 
 
@@ -160,7 +168,7 @@ def probaMap_fromROI(roiFile, priorsLoc, priors_type,
         templShape = templIm.shape
         affine3D = templIm.affine
 
-    roiIm = checkOrient(roiIm, templShape, affine3D, 0)
+    roiIm = checkOrient_load(roiIm, templShape, affine3D, 0, True)
     roiVol = roiIm.get_fdata().astype(bool)
 
     listVox = np.argwhere(roiVol)

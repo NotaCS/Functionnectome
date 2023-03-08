@@ -15,12 +15,13 @@ A bit faster now...
 import nibabel as nib
 import numpy as np
 import h5py
-from scipy.spatial.distance import cdist
 import multiprocessing
 import argparse
 import time
 import os
 from Functionnectome.quickDisco import checkH5
+# from scipy.spatial.distance import cdist
+# from numba import njit
 # import numexpr as ne
 
 
@@ -88,16 +89,42 @@ def correl_all(A, B):
     return C
 
 
-# def correl_all_numexpr(A, B):
+# @njit
+# def correlJIT(a, b):
 #     '''
 #     Correlate each time-window beetween A and B
 #     Should be faster than the non-numexpr function, but doesn't appear to be...
-#     A = (window, time)
-#     B = (voxel, window, time)
+#     a = (wind, time)
+#     b = (wind, voxel, time)
 
-#     C = (voxel, window)
+#     c.T = (voxel, wind)
 
 #     '''
+#     c = np.zeros((b.shape[0:2]), dtype=np.float32)
+#     for w in range(len(a)):
+#         B = b[w]
+#         A = a[w]
+
+#         Bmean = np.array([B[i, :].mean() for i in range(B.shape[1])])
+#         Amean = np.mean(A)
+#         A = A.reshape(1, -1)
+
+#         Aresiduals = A - Amean
+#         Bresiduals = B - Bmean
+
+#         Aresidual_sqsums = np.expand_dims(np.sum(Aresiduals**2, 1), 1)
+#         Bresidual_sqsums = np.expand_dims(np.sum(Bresiduals**2, 1), 1)
+
+#         covs = np.dot(Aresiduals, Bresiduals.T)
+
+#         norm_prods = np.sqrt(np.dot(Aresidual_sqsums, Bresidual_sqsums.T))
+
+#         C = (covs / norm_prods).reshape(-1)
+#         c[w] = C
+#     return c.T
+
+
+# def correl_all_numexpr(A, B):
 #     A = np.expand_dims(A, 0)
 #     Amean = A.mean(-1, keepdims=True)
 #     Bmean = B.mean(-1, keepdims=True)
@@ -110,10 +137,37 @@ def correl_all(A, B):
 #     covs = ne.evaluate('sum(Aresiduals * Bresiduals, 2)')
 
 #     norm_prods = ne.evaluate('sum(Aresidual_sqsums * Bresidual_sqsums, 2)')
-#     norm_prods = ne.evaluate('sqrt(norm_prods)')
 
-#     C = ne.evaluate('covs / norm_prods')
+#     C = ne.evaluate('covs / sqrt(norm_prods)')
 #     return C
+
+
+def correl(AB):
+    '''
+    Correlate each time-window beetween A and B
+    Should be faster than the non-numexpr function, but doesn't appear to be...
+    A = (time)
+    B = (voxel, time)
+
+    C = (voxel,)
+
+    I tried using numexpr, numba, cdist, but for some reason
+    this is still the fastest method in cobination with map()...
+    '''
+    A, B = AB
+    A = A.reshape(1, -1)
+    Aresiduals = A - A.mean(-1, keepdims=True)
+    Bresiduals = B - B.mean(-1, keepdims=True)
+
+    Aresidual_sqsums = (Aresiduals**2).sum(-1, keepdims=True)
+    Bresidual_sqsums = (Bresiduals**2).sum(-1, keepdims=True)
+
+    covs = np.dot(Aresiduals, Bresiduals.T)
+
+    norm_prods = np.sqrt(np.dot(Aresidual_sqsums, Bresidual_sqsums.T))
+
+    C = np.squeeze(covs / norm_prods)
+    return C
 
 
 def run_dFC_funtome_all(vox_list):
@@ -125,45 +179,57 @@ def run_dFC_funtome_all(vox_list):
     mat_windows += np.arange(len_dFC).reshape((len_dFC, 1))  # incrementing 1 index per line
     gm_ts = funtome_vol[gm_mask]  # Time-series of all gm voxels
     mat_win_gm_ts = gm_ts[:, mat_windows]
+    mat_win_gm_ts = np.swapaxes(mat_win_gm_ts, 0, 1)  # test
+    tlast = time.time()
     with h5py.File(priorsLoc, "r") as h5fout:
         for ind_num, indvox in enumerate(vox_list):
             if verb and not ind_num % 100:
-                print(f'voxel {ind_num} of {len(vox_list)}')
+                tnow = time.time()
+                tdiff = int(tnow - tlast)
+                print(f'voxel {ind_num} of {len(vox_list)} ({tdiff} sec since previous print)')
+                tlast = tnow
             ts_funtome = funtome_vol[indvox]
             try:
                 priorMap = h5fout["tract_voxel"][f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"][:]
             except KeyError:
                 continue
             mat_win_ts = ts_funtome[mat_windows]  # ts of all the time windows in 1 matrix
-            mat_fc = correl_all(mat_win_ts, mat_win_gm_ts)
+            # mat_fc = correl_all(mat_win_ts, mat_win_gm_ts)
+            winzip = zip(mat_win_ts, mat_win_gm_ts)  # test
+            mat_fc = np.array(list(map(correl, winzip))).T  # test
+            # mat_fc = correlJIT(mat_win_ts, mat_win_gm_ts)  # test2
             weights = priorMap[gm_mask].reshape(-1, 1)
             ts_out[ind_num] = (mat_fc * weights).sum(0) / len(weights)
     return ts_out
 
 
-def run_dFC_funtome(vox_list):
-    len_dFC = funtome_vol.shape[-1] + 1 - windowSize  # Nb of time-points in the output
-    ts_out = np.zeros((len(vox_list), len_dFC))
-    with h5py.File(priorsLoc, "r") as h5fout:
-        for ind_num, indvox in enumerate(vox_list):
-            if verb and not ind_num % 100:
-                print(f'voxel {ind_num} of {len(vox_list)}')
-            ts_funtome = funtome_vol[indvox]
-            try:
-                priorMap = h5fout["tract_voxel"][f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"][:]
-            except KeyError:
-                continue
-            weights = priorMap[gm_mask]
-            for step in range(len_dFC):
-                ts_funtome_w = ts_funtome[step: step + windowSize]
-                ts_gm_w = funtome_vol[gm_mask, step: step + windowSize]
-                fc_w = 1 - cdist(ts_funtome_w.reshape(1, -1), ts_gm_w, metric='correlation')
-                # z_fc_w = np.arctanh(fc_w)  # Fisher transform -> Bad results! :(
-                # z_fc_average = (weights * z_fc_w).sum() / len(weights)
-                # fc_average = np.tanh(z_fc_average)  # back to "correlation" values
-                fc_average = (weights * fc_w).sum() / len(weights)
-                ts_out[ind_num, step] = fc_average
-    return ts_out
+# def run_dFC_funtome(vox_list):
+#     len_dFC = funtome_vol.shape[-1] + 1 - windowSize  # Nb of time-points in the output
+#     ts_out = np.zeros((len(vox_list), len_dFC))
+#     tlast = time.time()
+#     with h5py.File(priorsLoc, "r") as h5fout:
+#         for ind_num, indvox in enumerate(vox_list):
+#             if verb and not ind_num % 100:
+#                 tnow = time.time()
+#                 tdiff = int(tnow - tlast)
+#                 print(f'voxel {ind_num} of {len(vox_list)} ({tdiff} sec since previous print)')
+#                 tlast = tnow
+#             ts_funtome = funtome_vol[indvox]
+#             try:
+#                 priorMap = h5fout["tract_voxel"][f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"][:]
+#             except KeyError:
+#                 continue
+#             weights = priorMap[gm_mask]
+#             for step in range(len_dFC):
+#                 ts_funtome_w = ts_funtome[step: step + windowSize]
+#                 ts_gm_w = funtome_vol[gm_mask, step: step + windowSize]
+#                 fc_w = 1 - cdist(ts_funtome_w.reshape(1, -1), ts_gm_w, metric='correlation')
+#                 # z_fc_w = np.arctanh(fc_w)  # Fisher transform -> Bad results! :(
+#                 # z_fc_average = (weights * z_fc_w).sum() / len(weights)
+#                 # fc_average = np.tanh(z_fc_average)  # back to "correlation" values
+#                 fc_average = (weights * fc_w).sum() / len(weights)
+#                 ts_out[ind_num, step] = fc_average
+#     return ts_out
 
 
 def init_worker(gm, bold, bold_shape, winSize, pLoc, v):

@@ -497,9 +497,17 @@ def updateOldJson(jsonPath, priorsVal):
     Check if the json file requires updating, and edit it to fit the current way
     of savin the priors paths.
     '''
+    badLabels = []
     if "h5_priors" in priorsVal.keys():
         priorsVal[PRIORS_H5[-1]] = priorsVal["h5_priors"]
-        del priorsVal["h5_priors"]
+        badLabels.append("h5_priors")
+    for plab in priorsVal.keys():
+        if plab not in PRIORS_H5 + ('template', 'regions', 'region_pmap', 'voxel_pmap'):
+            warnings.warn(f'Removing "{plab}" from the saved priors as it is deprecated.')
+            badLabels.append(plab)
+    if badLabels:
+        for blab in badLabels:
+            del priorsVal[blab]
         with open(jsonPath, "w") as jsonP:
             json.dump(priorsVal, jsonP)
     return priorsVal

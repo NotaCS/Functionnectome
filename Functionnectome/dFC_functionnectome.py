@@ -19,7 +19,8 @@ import multiprocessing
 import argparse
 import time
 import os
-from Functionnectome.quickDisco import checkH5, checkOrient_load
+from Functionnectome.functionnectome import checkOrient_load
+from Functionnectome.quickDisco import checkH5
 # from scipy.spatial.distance import cdist
 # from numba import njit
 # import numexpr as ne

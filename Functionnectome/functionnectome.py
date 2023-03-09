@@ -9,16 +9,20 @@ Main script used for the computation of functionnectomes.
 
 "pmap" = probability map (= group level visitation map)
 
-Data is imported as float32 for all volumes, to simplify and speed up computation
+Data is imported as float32 for all volumes, to simplify and speed up computation (hopefully)
 
 TODO:Regionwise and voxelwise analyses started quite differently, but they kind of
 converged on the same algorithm, so I might have to fuse them together later...
+
+Possibility to add a white matter mask to speed up computation: in the settings file,
+change the 'Mask the output:' value (probably '1') t the file-path of the mask.
 """
 
 
 import pandas as pd
 from pathlib import Path
 import nibabel as nib
+from nibabel.processing import resample_from_to
 import numpy as np
 import h5py
 from tkinter import filedialog
@@ -411,7 +415,7 @@ def readSettings(settingF, forGUI=False):
             'nii',
         ),
         "Position of the subjects ID in their path:": int,
-        "Mask the output:": int,
+        "Mask the output:": str,
         "Number of subjects:": int,
         "Number of masks:": int,
         "HDF5 priors:": PRIORS_H5
@@ -447,7 +451,7 @@ def readSettings(settingF, forGUI=False):
     varDict['prior_type'] = getInputValues("Priors stored as ('h5' or 'nii'):", **sameInput)
     varDict['priorsH5'] = getInputValues('HDF5 priors:', **sameInput)
     varDict['subIDpos'] = int(getInputValues("Position of the subjects ID in their path:", **sameInput))
-    varDict['maskOutput'] = int(getInputValues("Mask the output:", **sameInput))
+    varDict['maskOutput'] = getInputValues("Mask the output:", **sameInput)
     varDict['subNb'] = int(getInputValues("Number of subjects:", **sameInput))
     varDict['bold_paths'] = getInputValues("Subject's BOLD paths:", **sameInput, nbItems=varDict['subNb'])
     varDict['mask_nb'] = int(getInputValues("Number of masks:", **sameInput))
@@ -486,6 +490,43 @@ def updateOldJson(jsonPath, priorsVal):
         with open(jsonPath, "w") as jsonP:
             json.dump(priorsVal, jsonP)
     return priorsVal
+
+
+def checkOrient_load(inIm, outShape, outAffine, splineOrder=3, verbose=False):
+    """
+    Checks and modify the left/right orientation of the input file so that it matches the expected
+    output (from outShape and outAffine). Will even resample of the volume if there is a scale issue.
+    """
+    translatIn = inIm.affine[:3, 3]
+    translatOut = outAffine[:3, 3]
+    diagIn = np.diag(inIm.affine)[:3]
+    diagOut = np.diag(outAffine)[:3]
+    if not (np.abs(translatIn) == np.abs(translatOut)).all():
+        raise ValueError('The input file is not in the proper space (probably not in MNI space)')
+    else:
+        if (inIm.affine == outAffine).all():
+            outIm = inIm
+        elif not (np.abs(diagIn) == np.abs(diagIn[0])).all():
+            raise ValueError('The voxels are not isotropic.')
+        else:
+            if diagIn[0] * diagOut[0] < 0:
+                if verbose:
+                    print(
+                        'Warning: The input seems to be in RAS orientation. It has been converted to LAS orientation '
+                        'for compatibility with the white matter priors (i.e., the left and right have been flipped). '
+                        'The output will be in LAS orientation too.'
+                        'As long as the orientation matrix is properly applied when reading the input or output, '
+                        'there will be no problem.'
+                    )
+            if (np.abs(diagIn) == np.abs(diagOut)).all():  # Just need a flip
+                outVol = np.flip(inIm.get_fdata(caching='unchanged').astype(inIm.get_data_dtype()))
+                outIm = nib.Nifti1Image(outVol, outAffine)
+                outIm.header['pixdim'][4] = inIm.header['pixdim'][4]  # Copy of the time resolution
+            else:
+                if verbose:
+                    print('Resampling the image to the output resolution.')
+                outIm = resample_from_to(inIm, (outShape, outAffine), order=splineOrder)
+    return outIm
 
 
 def getUniqueIDs(bold_paths, subIDpos):
@@ -1386,7 +1427,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                 and (opt_pmap_vox_loc or (opt_pmap_region_loc and opt_regions_loc))
             ):
                 raise Exception("Using optional settings, but some are not filled.")
-            template_path = opt_template_path
+            template_path = opt_template_path   # TODO: Should be the same as maskOutput?
             if anatype == "region":
                 pmap_loc = opt_pmap_region_loc
                 regions_loc = opt_regions_loc
@@ -1483,6 +1524,20 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     header3D[key] = hdr3D[key]
                 affine3D = header3D.get_sform()
 
+    # Load the white matter mask (if available)
+    wm_mask = None
+    if maskOutput in ['0', '1']:  # '0' only important for legacy priors
+        maskOutput = int(maskOutput)
+    elif os.path.exists(maskOutput) and os.path.splitext(maskOutput)[1] in ['.nii', '.gz']:
+        wm_maskIm = nib.load(maskOutput)
+        wm_maskIm = checkOrient_load(wm_maskIm, template_vol.shape, affine3D, 0)
+        wm_mask = wm_maskIm.get_fdata().astype(bool)
+    else:
+        raise ValueError(
+            f'Bad value for the outputMask ({maskOutput}).\n'
+            "Should be '0', '1', or a nifti (.nii or .nii.gz) file."
+        )
+
     # Retrieves all subjects' unique IDs from their path
     IDs = getUniqueIDs(bold_paths, subIDpos)
 
@@ -1562,6 +1617,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             bold_header = bold_img.header
             bold_affine = bold_img.affine
             # Checking if the data has proper dimension and orientation
+            # TODO: use checkOrient_load here too
             flipLR = False
             if not (bold_affine == affine3D).all():
                 if (bold_affine[0] == -affine3D[0]).all():
@@ -1701,7 +1757,10 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             sum_pmap4D_all = np.moveaxis(sum_pmap4D_all, 0, -1)
             # Masking the output with the template
             if maskOutput:
-                sum_pmap4D_all *= np.expand_dims(template_vol, -1)
+                if wm_mask is None:
+                    sum_pmap4D_all *= np.expand_dims(template_vol, -1)
+                else:
+                    sum_pmap4D_all *= np.expand_dims(wm_mask, -1)
             # Saving the results
             if flipLR:
                 sum_pmap4D_all = np.flip(sum_pmap4D_all, 0)
@@ -1723,7 +1782,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             if mask_path:
                 voxel_mask_img = nib.load(mask_path)
                 mask_affine = voxel_mask_img.affine
-                voxel_mask = voxel_mask_img.get_fdata().astype(bool)
+                voxel_mask = voxel_mask_img.get_fdata().astype(bool)  # GM mask
                 if not (mask_affine == affine3D).all():  # Check the orientation of the mask
                     if (mask_affine[0] == -affine3D[0]).all():
                         voxel_mask = np.flip(voxel_mask, 0)
@@ -1864,15 +1923,18 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             # ind_mask2 = None
 
             # Create a shared RawArray containing the index of each used voxel
-            ind_template = np.argwhere(template_vol).astype("uint16")
-            ind_template_shared = multiprocessing.RawArray(
-                "i", int(np.prod(ind_template.shape))
+            if wm_mask is None:
+                ind_outVox = np.argwhere(template_vol).astype("uint16")
+            else:
+                ind_outVox = np.argwhere(wm_mask).astype("uint16")
+            ind_outVox_shared = multiprocessing.RawArray(
+                "i", int(np.prod(ind_outVox.shape))
             )
-            ind_template_shared_np = np.frombuffer(ind_template_shared, "i").reshape(
-                ind_template.shape
+            ind_outVox_shared_np = np.frombuffer(ind_outVox_shared, "i").reshape(
+                ind_outVox.shape
             )
-            np.copyto(ind_template_shared_np, ind_template)
-            ind_template = None
+            np.copyto(ind_outVox_shared_np, ind_outVox)
+            ind_outVox = None
 
             # Create a shared RawArray that will contain the results
             # bold_reshape = (bold_shape[-1], )+(bold_shape[:-1])
@@ -1888,7 +1950,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     nb_of_batchs,
                     bold_2D_shared,
                     prior_type,
-                    ind_template_shared,
+                    ind_outVox_shared,
                     voxel_mask,
                     pmap_loc,
                     results_dir,
@@ -1936,7 +1998,10 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                 print("Multiprocessing done. Saving results.")
             # Masking out the stray voxels out of the brain
             if maskOutput:
-                sum_pmap4D_all *= np.expand_dims(template_vol, -1)
+                if wm_mask is None:
+                    sum_pmap4D_all *= np.expand_dims(template_vol, -1)
+                else:
+                    sum_pmap4D_all *= np.expand_dims(wm_mask, -1)  # Shouldn't be necessary
             # Saving the results
             if flipLR:
                 sum_pmap4D_all = np.flip(sum_pmap4D_all, 0)

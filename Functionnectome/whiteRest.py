@@ -27,9 +27,9 @@ The software also gives the possibility to save a pie-chart summary of the resul
 
 
 *: The atlas and label files can be downloaded from:
-    https://www.dropbox.com/s/mo4zs159rqhqopv/WhiteRest.zip?dl=0
+    https://www.dropbox.com/s/u9c3t2r1d60mlpm/WhiteRest.zip?dl=0
 or, if there is a problem with the link, uppon request to:
-    victor.nozais@gmail.com
+    nozais.victor@gmail.com
 **: Disconnectome original paper: https://doi.org/10.1038/s41467-020-18920-9
 """
 

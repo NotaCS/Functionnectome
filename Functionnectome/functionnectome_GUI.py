@@ -73,9 +73,8 @@ class Functionnectome_GUI(tk.Tk):
         self.subInPath.set("0")
         # Output directory where the results will be written:
         self.outDir = tk.StringVar()
-        # If true, the output will be masked with the template volume:
-        self.maskOutput = tk.IntVar()
-        self.maskOutput.set(1)
+        # Optional white matter mask to select the output funtome voxels
+        self.wmMask = tk.StringVar()
         self.ana_type = tk.StringVar()  # Type of analysis (voxelwise or regionwise)
         self.ana_type.trace("w", self.activation_maskBtn)
         self.nb_parallel_proc = tk.StringVar()
@@ -176,9 +175,10 @@ class Functionnectome_GUI(tk.Tk):
         self.outDirIn = tk.Entry(self.fOut, bd=1, textvariable=self.outDir, width=30)
         self.buttonOutDir = tk.Button(self.fOut, text="...", command=self.get_outDir)
         self.lbl3b = tk.Label(
-            self.fOut, text="Mask the output:", font="Helvetica 12 bold"
+            self.fOut, text="White matter output mask (optional):", font="Helvetica 12 bold"
         )
-        self.maskCheck = tk.Checkbutton(self.fOut, variable=self.maskOutput)
+        self.wm_maskIn = tk.Entry(self.fOut, bd=1, textvariable=self.wmMask, width=30)
+        self.buttonWMmask = tk.Button(self.fOut, text="...", command=self.get_wmMask)
 
         self.fOut.grid(
             column=2,
@@ -194,7 +194,8 @@ class Functionnectome_GUI(tk.Tk):
         self.outDirIn.grid(column=0, row=1, columnspan=2, sticky="W", padx=5)
         self.buttonOutDir.grid(column=2, row=1, sticky="W")
         self.lbl3b.grid(column=0, row=2, columnspan=1, sticky="W", padx=5, pady=5)
-        self.maskCheck.grid(column=1, row=2, sticky="W")
+        self.wm_maskIn.grid(column=0, row=3, columnspan=2, sticky="W", padx=5)
+        self.buttonWMmask.grid(column=2, row=3, sticky="W")
 
         # Analysis frame : Choose analysis options
         self.fAna = tk.Frame(self, bd=1, relief="sunken")
@@ -593,6 +594,17 @@ class Functionnectome_GUI(tk.Tk):
             # if not os.path.isdir(outDir_tmp):
             #     os.mkdir(outDir_tmp)
 
+    def get_wmMask(self):
+        wmf_tmp = filedialog.askopenfilename(
+            parent=self.fOut,
+            initialdir=self.cwd,
+            title="Choose the white matter mask file",
+            filetypes=[("Nifti files", ".nii .gz")],
+        )
+        if wmf_tmp:
+            self.cwd = os.path.dirname(wmf_tmp)
+            self.wmMask.set(wmf_tmp)
+
     def updateLbl(self, *args):
         self.numFiles.set(f"{self.nbFiles.get()} BOLD files selected")
         if self.nbFiles.get() == 0:
@@ -797,6 +809,9 @@ class Functionnectome_GUI(tk.Tk):
             if not confirm_save:
                 return 0
 
+        outputMask = str(self.wmMask.get())
+        if not outputMask:
+            outputMask = '1'  # always mask the output with the template
         settingsTxt = (
             "Output folder:\n"
             "\t" + self.outDir.get() + "\n"
@@ -811,7 +826,7 @@ class Functionnectome_GUI(tk.Tk):
             "Position of the subjects ID in their path:\n"
             "\t" + posID + "\n"
             "Mask the output:\n"
-            "\t" + str(self.maskOutput.get()) + "\n"
+            "\t" + outputMask + "\n"
             "Number of subjects:\n"
             "\t" + str(self.nbFiles.get()) + "\n"
             "Number of masks:\n"
@@ -855,7 +870,11 @@ class Functionnectome_GUI(tk.Tk):
             messagebox.showwarning('Error', settingsDict.args[0])
             return
         self.outDir.set(settingsDict['results_dir_root'])
-        self.maskOutput.set(settingsDict['maskOutput'])
+        wm_maskF = settingsDict['maskOutput']
+        if wm_maskF in ['0', '1']:
+            self.wmMask.set('')
+        else:
+            self.wmMask.set(wm_maskF)
         self.ana_type.set(settingsDict['anatype'])
         self.nb_parallel_proc.set(settingsDict['nb_of_batchs'])
         self.nbFiles.set(settingsDict['subNb'])

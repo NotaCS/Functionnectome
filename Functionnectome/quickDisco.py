@@ -196,6 +196,7 @@ def checkH5():
         with open(jsonPath, "r") as jsonP:
             priors_paths = json.load(jsonP)
         priors_paths = fun.updateOldJson(jsonPath, priors_paths)
+        fun.check_old_V2_priors(priors_paths)
         h5Priors = fnmatch.filter(priors_paths.keys(), 'V* - *')  # h5 labels should follow this pattern
         if len(h5Priors) and priors_paths[h5Priors[0]]:
             priorsOK = True

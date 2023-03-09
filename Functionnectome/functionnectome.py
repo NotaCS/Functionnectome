@@ -40,6 +40,7 @@ import glob
 import sys
 import os
 
+
 # Setting the number of threads for numpy (before importing numpy)
 threads = 1
 os.environ["OMP_NUM_THREADS"] = str(threads)
@@ -72,25 +73,37 @@ PRIORS_INFO = (  # TODO : Fill the URL when available
      "priors_cereb_deter3T.h5.zip",
      ),
     ('V2.P.WB - Whole brain, Probabilistic',
-     "https://www.dropbox.com/s/j5a6sh3w7bltuez/priors_full_proba3T.h5.zip?dl=1",
-     "priors_full_proba3T.h5.zip",
+     "https://www.dropbox.com/s/6olyvp1zzitvyph/priors_full_proba_3T.h5.zip?dl=1",
+     "priors_full_proba_3T.h5.zip",
      ),
     ('V2.P.Asso - Association, Probabilistic',
-     "https://www.dropbox.com/s/yxcs6sjp34io9f1/priors_asso_proba3T.h5.zip?dl=1",
-     "priors_asso_proba3T.h5.zip",
+     "https://www.dropbox.com/s/j1wctouunoqk11k/priors_asso_proba_3T.h5.zip?dl=1",
+     "priors_asso_proba_3T.h5.zip",
+     ),
+    ('V2.P.Asso.S - Association short, Probabilistic',
+     "https://www.dropbox.com/s/e4sm2uk5y01yqnb/priors_asso_short_proba_3T.h5.zip?dl=1",
+     "priors_asso_short_proba_3T.h5.zip",
+     ),
+    ('V2.P.Asso.M - Association medium, Probabilistic',
+     "https://www.dropbox.com/s/ni6kvtt8azup1cn/priors_asso_medium_proba_3T.h5.zip?dl=1",
+     "priors_asso_medium_proba_3T.h5.zip",
+     ),
+    ('V2.P.Asso.L - Association long, Probabilistic',
+     "https://www.dropbox.com/s/lskac1gkwa001u8/priors_asso_long_proba_3T.h5.zip?dl=1",
+     "priors_asso_long_proba_3T.h5.zip",
      ),
     ('V2.P.Proj - Projection, Probabilistic',
-     "https://www.dropbox.com/s/v71j6q5y7l48qeq/priors_proj_proba3T.h5.zip?dl=1",
-     "priors_proj_proba3T.h5.zip",
+     "https://www.dropbox.com/s/311leci5cd7zkgd/priors_proj_proba_3T.h5.zip?dl=1",
+     "priors_proj_proba_3T.h5.zip",
      ),
     ('V2.P.Comm - Commissural, Probabilistic',
-     "https://www.dropbox.com/s/0ajvcei25j2zf72/priors_comm_proba3T.h5.zip?dl=1",
-     "priors_comm_proba3T.h5.zip",
+     "https://www.dropbox.com/s/4vz0ofjaelrm54y/priors_comm_proba_3T.h5.zip?dl=1",
+     "priors_comm_proba_3T.h5.zip",
      ),
-    ('V2.P.Cereb - Cerebellar, Probabilistic',
-     "https://www.dropbox.com/s/nfq9gh09u4whw72/priors_cereb_proba3T.h5.zip?dl=1",
-     "priors_cereb_proba3T.h5.zip",
-     ),
+    # ('V2.P.Cereb - Cerebellar, Probabilistic',  # No computed and not interesting with Extractor right now
+    #  "https://www.dropbox.com/s/nfq9gh09u4whw72/priors_cereb_proba3T.h5.zip?dl=1",
+    #  "priors_cereb_proba3T.h5.zip",
+    #  ),
     ('V1.D.WB - Whole brain, Deterministic (legacy)',
      "https://www.dropbox.com/s/22vix4krs2zgtnt/functionnectome_7TpriorsH5.zip?dl=1",
      "functionnectome_7TpriorsH5.zip",
@@ -490,6 +503,34 @@ def updateOldJson(jsonPath, priorsVal):
         with open(jsonPath, "w") as jsonP:
             json.dump(priorsVal, jsonP)
     return priorsVal
+
+
+def check_old_V2_priors(priorsPaths, currentLabel):
+    old_names = [
+        'priors_asso_proba3T.h5',
+        'priors_cereb_proba3T.h5',
+        'priors_comm_proba3T.h5',
+        'priors_full_proba3T.h5',
+        'priors_proj_proba3T.h5'
+    ]
+    old_files = []
+    affected_labels = []
+    for plab in priorsPaths.keys():
+        priorsF = priorsPaths[plab]
+        if os.path.basename(priorsF) in old_names:
+            old_files.append(priorsF)
+            affected_labels.append(plab)
+    if len(old_files):
+        warnMsgOldPriors = ('\nSome of the white matter priors you have downloaded are deprecated.\n'
+                            'Please, delete (or move) the files, then download the updated files.\n'
+                            '\nFiles in question:\n')
+        warnMsgOldPriors += '\n'.join(old_files)
+        warnMsgOldPriors += ('\n\nCorresponding labels that should be avoided:\n')
+        warnMsgOldPriors += '\n'.join(affected_labels)
+        if currentLabel in affected_labels:
+            warnMsgOldPriors += (f'\n\nYou are currently using "{currentLabel}"!!!\n'
+                                 '>>> You should probably interrupt the process (unless it is on purpose)\n')
+        warnings.warn(warnMsgOldPriors)
 
 
 def checkOrient_load(inIm, outShape, outAffine, splineOrder=3, verbose=False):
@@ -1177,6 +1218,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             with open(jsonPath, "r") as jsonP:
                 priors_paths = json.load(jsonP)
             priors_paths = updateOldJson(jsonPath, priors_paths)
+            check_old_V2_priors(priors_paths, priorsH5)
         else:  # Create a new dict to store the filepaths, filled below
             newJson = True
             priors_paths = {

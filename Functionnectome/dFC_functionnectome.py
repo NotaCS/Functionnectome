@@ -58,6 +58,8 @@ def _build_arg_parser(h5L):
                    default=1,
                    type=int,
                    help="Number of (parallel) processes to launch")
+    p.add_argument('-wm', '--wm_mask',
+                   help='Path of a white matter mask (output voxels) to speed-up computation (.nii, nii.gz).')
     p.add_argument('-v', '--verbose',
                    action='store_true',
                    help='Print the advancement evey 100 voxel processed')
@@ -276,13 +278,14 @@ def main():
     out_f = args.output_file
     proc = args.process
     verb = args.verbose
+    wm_f = args.wm_mask
 
     if os.path.exists(out_f):
         raise FileExistsError('Output file already exists.')
 
     # Get the template info
     with h5py.File(h5Loc, "r") as h5fout:
-        template_vol = h5fout["template"][:]
+        template_vol = h5fout["template"][:].astype(bool)
         templShape = template_vol.shape
         hdr = h5fout["tract_voxel"].attrs["header"]
         hdr3D = eval(hdr)
@@ -294,6 +297,15 @@ def main():
     gm_mask_im = nib.load(gm_f)
     gm_mask_im = checkOrient_load(gm_mask_im, templShape, affine3D, 0)
     gm_mask = gm_mask_im.get_fdata().astype(bool)
+
+    wm_mask = None
+    if wm_f is not None:
+        if not os.path.exists(wm_f):
+            raise FileNotFoundError(f'The white matter mask file was not found ("{wm_f}" does not exist).')
+        else:
+            wm_mask_im = nib.load(wm_f)
+            wm_mask_im = checkOrient_load(wm_mask_im, templShape, affine3D, 0)
+            wm_mask = wm_mask_im.get_fdata().astype(bool)
 
     funtome_im = nib.load(funtome_f)
     if verb:
@@ -314,10 +326,11 @@ def main():
     if windowSize < 1:
         raise ValueError('The sliding window size is lower than 1.')
 
-    with h5py.File(priorsLoc, "r") as h5fout:
-        template_vol = h5fout["template"][:].astype(bool)
-        template_vol = template_vol * funtome_signal
-    listVox = np.argwhere(template_vol)
+    if wm_mask is None:
+        fun_mask = template_vol * funtome_signal
+    else:
+        fun_mask = wm_mask * funtome_signal
+    listVox = np.argwhere(fun_mask)
 
     if verb:
         print('Starting process')
@@ -325,7 +338,7 @@ def main():
         listInd = tuple(listVox.T)  # like np.where
         listVox = [tuple(ind) for ind in listVox]  # tuple-ing
         ts_dFC = run_dFC_funtome_all(listVox)
-        # dFC_funtome[np.where(template_vol)] = ts_dFC
+        # dFC_funtome[np.where(fun_mask)] = ts_dFC
         dFC_funtome[listInd] = ts_dFC
     elif proc > 1:
         vox_batches = np.array_split(listVox, proc)

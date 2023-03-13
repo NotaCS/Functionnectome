@@ -217,7 +217,7 @@ class Functionnectome_GUI(tk.Tk):
             value="voxel",
         )
         self.buttonMask = tk.Button(
-            self.fAna, text="Select mask(s)", command=self.get_masks
+            self.fAna, text="Select grey matter mask(s)", command=self.get_masks
         )
         self.lbl4b = tk.Label(
             self.fAna, text="Number of parallel processes:", font="Helvetica 12 bold"

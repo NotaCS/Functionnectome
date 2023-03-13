@@ -37,5 +37,10 @@ setuptools.setup(
             "dFC_Fun=Functionnectome.dFC_functionnectome:main"
         ],
     },
-    install_requires=["numpy", "nibabel", "pandas", "h5py", "matplotlib"],
+    install_requires=["numpy",
+                      "nibabel",
+                      "pandas",
+                      "h5py",
+                      "matplotlib",
+                      "tkinter"],
 )

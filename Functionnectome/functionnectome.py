@@ -23,7 +23,6 @@ import pandas as pd
 from pathlib import Path
 import nibabel as nib
 from nibabel.processing import resample_from_to
-import numpy as np
 import h5py
 from tkinter import filedialog
 from tkinter import messagebox
@@ -48,6 +47,8 @@ os.environ["OPENBLAS_NUM_THREADS"] = str(threads)
 os.environ["MKL_NUM_THREADS"] = str(threads)
 os.environ["VECLIB_MAXIMUM_THREADS"] = str(threads)
 os.environ["NUMEXPR_NUM_THREADS"] = str(threads)
+
+import numpy as np  # nopep8
 
 # %% Information about the priors, shared as gloaba variable. Update here.
 

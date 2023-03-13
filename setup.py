@@ -14,7 +14,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="Functionnectome",
     url="https://github.com/NotaCS/Functionnectome",
-    version="2.2.0",
+    version="2.2.1",
     author="Victor Nozais",
     author_email="nozais.victor@gmail.com",
     description="Package containing all the necessary tools to run the Functionnectome method",

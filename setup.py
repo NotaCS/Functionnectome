@@ -41,6 +41,5 @@ setuptools.setup(
                       "nibabel",
                       "pandas",
                       "h5py",
-                      "matplotlib",
-                      "tkinter"],
+                      "matplotlib"],
 )

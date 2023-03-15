@@ -1594,7 +1594,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
 
     # %% Start the loop over all the input files (i.e. "subjects")
     for isub, subID, boldf in zip(range(len(bold_paths)), IDs, bold_paths):
-        print(f"Processing subject {subID} in {anatype}wise analysis")
+        print(f"Processing subject {subID} in {anatype}wise analysis ({isub + 1}/{len(bold_paths)})")
         results_dir = os.path.join(results_dir_root, anatype + "wise_analysis", subID)
         finalOutPath = os.path.join(results_dir, "functionnectome.nii.gz")
         if os.path.exists(finalOutPath):

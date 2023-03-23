@@ -39,7 +39,7 @@ setuptools.setup(
         ],
     },
     install_requires=["numpy",
-                      "nibabel",
+                      "nibabel>=3.2",
                       "pandas",
                       "h5py",
                       "matplotlib"],

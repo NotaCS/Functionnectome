@@ -24,6 +24,7 @@ from tkinter import filedialog
 from tkinter import messagebox
 from pathlib import Path
 import pkg_resources
+import darkdetect
 
 try:
     import Functionnectome.functionnectome as fun
@@ -44,6 +45,11 @@ class Functionnectome_GUI(tk.Tk):
         super().__init__()
 
         # self.geometry('600x320')
+        if darkdetect.isDark():
+            self.bg_color = 'slategrey'
+        else:
+            self.bg_color = 'lightgrey'
+        self.configure(background=self.bg_color)
         if version:
             self.title(f"Functionnectome processing (v{version})")
         else:
@@ -94,16 +100,17 @@ class Functionnectome_GUI(tk.Tk):
         epad = 10
 
         # BOLD choice frame, first part : Select BOLD files from one folder
-        self.fBOLD = tk.Frame(self, bd=1, relief="sunken")
+        self.fBOLD = tk.Frame(self, bd=1, relief="sunken", bg=self.bg_color)
         self.lbl1 = tk.Label(
             self.fBOLD,
             text="Select BOLD files from one folder",
             font="Helvetica 12 bold",
+            bg=self.bg_color
         )
         self.buttonBold1 = tk.Button(
-            self.fBOLD, text="Choose files", command=self.get_bold1
+            self.fBOLD, text="Choose files", command=self.get_bold1, highlightbackground=self.bg_color,
         )
-        self.numFiles_lbl1 = tk.Label(self.fBOLD, textvariable=self.numFiles)
+        self.numFiles_lbl1 = tk.Label(self.fBOLD, textvariable=self.numFiles, bg=self.bg_color)
 
         self.fBOLD.grid(
             column=0,
@@ -124,6 +131,7 @@ class Functionnectome_GUI(tk.Tk):
             self.fBOLD,
             text="----------    or    ----------",
             font="Helvetica 12 italic",
+            bg=self.bg_color,
         )
         self.lblor.grid(column=0, row=2, columnspan=2, sticky="news", pady=10)
 
@@ -133,15 +141,17 @@ class Functionnectome_GUI(tk.Tk):
             self.fBOLD,
             text="Select BOLD files by pasting paths",
             font="Helvetica 12 bold",
+            bg=self.bg_color,
         )
         self.buttonBold2 = tk.Button(
             self.fBOLD,
             text="Choose files",
             command=lambda: self.get_files_paste("bold_paths", self.nbFiles),
+            highlightbackground=self.bg_color,
         )
-        self.numFiles_lbl2 = tk.Label(self.fBOLD, textvariable=self.numFiles)
+        self.numFiles_lbl2 = tk.Label(self.fBOLD, textvariable=self.numFiles, bg=self.bg_color)
         self.lbl2b = tk.Label(
-            self.fBOLD, text="Position of the subject ID in the path:"
+            self.fBOLD, text="Position of the subject ID in the path:", bg=self.bg_color
         )
         self.posSubName = tk.Spinbox(
             self.fBOLD,
@@ -150,8 +160,9 @@ class Functionnectome_GUI(tk.Tk):
             width=5,
             textvariable=self.subInPath,
             command=self.update_exSub,
+            background=self.bg_color
         )
-        self.exSub = tk.Label(self.fBOLD, textvariable=self.exSubName)
+        self.exSub = tk.Label(self.fBOLD, textvariable=self.exSubName, bg=self.bg_color)
 
         # self.f2.grid(column=0, row=1, padx=epad, pady=epad, ipadx=ipad, ipady=ipad, columnspan=2, sticky='news')
         self.lbl2a.grid(column=0, row=3, columnspan=2, padx=5, pady=5, sticky="W")
@@ -163,22 +174,22 @@ class Functionnectome_GUI(tk.Tk):
 
         # View the selected files
         self.butonViewFiles = tk.Button(
-            self, text="View selected files", command=self.view_files
+            self, text="View selected files", command=self.view_files, highlightbackground=self.bg_color,
         )
         self.butonViewFiles.grid(
             column=0, row=1, columnspan=2, padx=epad, pady=epad, sticky="ew"
         )
 
         # Output frame : Choose output folder
-        self.fOut = tk.Frame(self, bd=1, relief="sunken")
-        self.lbl3a = tk.Label(self.fOut, text="Output folder", font="Helvetica 12 bold")
+        self.fOut = tk.Frame(self, bd=1, relief="sunken", bg=self.bg_color)
+        self.lbl3a = tk.Label(self.fOut, text="Output folder", font="Helvetica 12 bold", bg=self.bg_color)
         self.outDirIn = tk.Entry(self.fOut, bd=1, textvariable=self.outDir, width=30)
-        self.buttonOutDir = tk.Button(self.fOut, text="...", command=self.get_outDir)
+        self.buttonOutDir = tk.Button(self.fOut, text="...", command=self.get_outDir, highlightbackground=self.bg_color)
         self.lbl3b = tk.Label(
-            self.fOut, text="White matter output mask (optional):", font="Helvetica 12 bold"
+            self.fOut, text="White matter output mask (optional):", font="Helvetica 12 bold", bg=self.bg_color
         )
         self.wm_maskIn = tk.Entry(self.fOut, bd=1, textvariable=self.wmMask, width=30)
-        self.buttonWMmask = tk.Button(self.fOut, text="...", command=self.get_wmMask)
+        self.buttonWMmask = tk.Button(self.fOut, text="...", command=self.get_wmMask, highlightbackground=self.bg_color)
 
         self.fOut.grid(
             column=2,
@@ -198,29 +209,32 @@ class Functionnectome_GUI(tk.Tk):
         self.buttonWMmask.grid(column=2, row=3, sticky="W")
 
         # Analysis frame : Choose analysis options
-        self.fAna = tk.Frame(self, bd=1, relief="sunken")
+        self.fAna = tk.Frame(self, bd=1, relief="sunken", bg=self.bg_color)
         self.lbl4a = tk.Label(
             self.fAna,
             text="Choose the type of analysis to run:",
             font="Helvetica 12 bold",
+            bg=self.bg_color,
         )
         self.ana_region = tk.Radiobutton(
             self.fAna,
             text="Region-wise functionnectome",
             variable=self.ana_type,
             value="region",
+            bg=self.bg_color
         )
         self.ana_voxel = tk.Radiobutton(
             self.fAna,
             text="Voxel-wise functionnectome",
             variable=self.ana_type,
             value="voxel",
+            bg=self.bg_color,
         )
         self.buttonMask = tk.Button(
-            self.fAna, text="Select grey matter mask(s)", command=self.get_masks
+            self.fAna, text="Select grey matter mask(s)", command=self.get_masks, highlightbackground=self.bg_color
         )
         self.lbl4b = tk.Label(
-            self.fAna, text="Number of parallel processes:", font="Helvetica 12 bold"
+            self.fAna, text="Number of parallel processes:", font="Helvetica 12 bold", bg=self.bg_color
         )
         self.parallel_proc = tk.Spinbox(
             self.fAna,
@@ -228,33 +242,36 @@ class Functionnectome_GUI(tk.Tk):
             to=os.cpu_count(),
             width=5,
             textvariable=self.nb_parallel_proc,
+            bg=self.bg_color
         )
         self.lbl4c = tk.Label(
-            self.fAna, text="Priors are stored as:", font="Helvetica 12 bold"
+            self.fAna, text="Priors are stored as:", font="Helvetica 12 bold", bg=self.bg_color
         )
         self.lbl4d = tk.Label(
-            self.fAna, text="Choice of priors:", font="Helvetica 12 bold"
+            self.fAna, text="Choice of priors:", font="Helvetica 12 bold", bg=self.bg_color
         )
         self.lbl4e = tk.Label(
-            self.fAna, text="DL all:", font="Helvetica 12 bold"
+            self.fAna, text="DL all:", font="Helvetica 12 bold", bg=self.bg_color
         )
         self.priorH5 = tk.Radiobutton(
-            self.fAna, text="One HDF5 file", variable=self.priors, value="h5"
+            self.fAna, text="One HDF5 file", variable=self.priors, value="h5", bg=self.bg_color
         )
         self.priorNii = tk.Radiobutton(
-            self.fAna, text="Multiple NIfTI files", variable=self.priors, value="nii"
+            self.fAna, text="Multiple NIfTI files", variable=self.priors, value="nii", bg=self.bg_color
         )
         self.priorsFileList = list(PRIORS_H5)
         self.h5files = ttk.Combobox(self.fAna,
                                     values=self.priorsFileList,
                                     textvariable=self.priorsChoice,
-                                    state="readonly")
+                                    state="readonly",
+                                    background=self.bg_color,
+                                    foreground=self.bg_color)
         self.ana_type.set("voxel")
         self.h5files.current(self.priorsFileList.index('V1.D.WB - Whole brain, Deterministic (legacy)'))
         self.buttonDL = tk.Button(
-            self.fAna, text="Manual download", command=self.manualDLpriors
+            self.fAna, text="Manual download", command=self.manualDLpriors,  highlightbackground=self.bg_color
         )
-        self.chkDLall = tk.Checkbutton(self.fAna, variable=self.DLall)
+        self.chkDLall = tk.Checkbutton(self.fAna, variable=self.DLall, bg=self.bg_color)
         self.priors.set("h5")
 
         self.fAna.grid(
@@ -284,10 +301,10 @@ class Functionnectome_GUI(tk.Tk):
         self.lbl4e.grid(column=2, row=8)
 
         # Bottom buttons
-        self.saveBtn = tk.Button(self, text="Save", command=self.choseFileAndSave)
-        self.loadBtn = tk.Button(self, text="Load", command=self.loadSettings)
-        self.lauchBtn = tk.Button(self, text="Launch", command=self.launchAna)
-        self.quitBtn = tk.Button(self, text="Exit", command=self.destroy)
+        self.saveBtn = tk.Button(self, text="Save", command=self.choseFileAndSave, highlightbackground=self.bg_color)
+        self.loadBtn = tk.Button(self, text="Load", command=self.loadSettings, highlightbackground=self.bg_color)
+        self.lauchBtn = tk.Button(self, text="Launch", command=self.launchAna, highlightbackground=self.bg_color)
+        self.quitBtn = tk.Button(self, text="Exit", command=self.destroy, highlightbackground=self.bg_color)
 
         self.saveBtn.grid(column=0, row=3, padx=epad, pady=epad)
         self.loadBtn.grid(column=1, row=3, padx=epad, pady=epad)
@@ -399,6 +416,7 @@ class Functionnectome_GUI(tk.Tk):
                 btn_select2.config(state="normal")
 
         top_mask = tk.Toplevel(self)
+        top_mask.configure(background=self.bg_color)
         top_mask.title("Masking options")
         top_mask.grab_set()
         self.mask_paths_tmp = self.mask_paths
@@ -406,21 +424,24 @@ class Functionnectome_GUI(tk.Tk):
         nbmask.trace("w", activation_btn)
 
         nb_mask1 = tk.Radiobutton(
-            top_mask, text="One mask per subject", variable=nbmask, value="subjectwise"
+            top_mask, text="One mask per subject", variable=nbmask, value="subjectwise", bg=self.bg_color
         )
         nb_mask2 = tk.Radiobutton(
-            top_mask, text="Same mask for all", variable=nbmask, value="common"
+            top_mask, text="Same mask for all", variable=nbmask, value="common", bg=self.bg_color
         )
         btn_paste = tk.Button(
             top_mask,
             text="Paste paths",
             command=lambda: self.get_files_paste("mask_paths_tmp", self.nbMasks),
+            highlightbackground=self.bg_color
         )
-        btn_select1 = tk.Button(top_mask, text="Select files", command=choose_masks)
-        btn_select2 = tk.Button(top_mask, text="Select the file", command=choose_mask)
-        btn_cancel = tk.Button(top_mask, text="Cancel", command=cancel_btn)
-        btn_view = tk.Button(top_mask, text="View selected masks", command=view_masks)
-        btn_ok = tk.Button(top_mask, text="OK", command=ok_maskBtn)
+        btn_select1 = tk.Button(top_mask, text="Select files", command=choose_masks, highlightbackground=self.bg_color)
+        btn_select2 = tk.Button(top_mask, text="Select the file", command=choose_mask,
+                                highlightbackground=self.bg_color)
+        btn_cancel = tk.Button(top_mask, text="Cancel", command=cancel_btn, highlightbackground=self.bg_color)
+        btn_view = tk.Button(top_mask, text="View selected masks",
+                             command=view_masks, highlightbackground=self.bg_color)
+        btn_ok = tk.Button(top_mask, text="OK", command=ok_maskBtn, highlightbackground=self.bg_color)
 
         nb_mask1.grid(column=0, row=0, rowspan=2, columnspan=2, padx=5, sticky="w")
         nb_mask2.grid(column=0, row=2, columnspan=2, padx=5, sticky="w")
@@ -557,7 +578,9 @@ class Functionnectome_GUI(tk.Tk):
                     mode='indeterminate',
                     length=280
                 )
-                infolabel = ttk.Label(DLwindow, text='Downloading in progress... Check the terminal for more details.')
+                infolabel = ttk.Label(DLwindow,
+                                      text='Downloading in progress... Check the terminal for more details.',
+                                      bg=self.bg_color)
                 infolabel.grid(column=0, row=0)
                 pb.grid(column=0, row=1)
                 pb.start()
@@ -624,12 +647,13 @@ class Functionnectome_GUI(tk.Tk):
         Display a textbox so that the user car directly paste-in the files paths
         """
         pasteWin = tk.Toplevel()
+        pasteWin.configure(background=self.bg_color)
         pasteWin.title("Select the files")
         pasteWin.grab_set()
 
         paths = getattr(self, paths_varname)
 
-        lblgetfile = tk.Label(pasteWin, text="Paste the paths to all the files here :")
+        lblgetfile = tk.Label(pasteWin, text="Paste the paths to all the files here :", bg=self.bg_color)
         txtPaths = tk.Text(pasteWin)
         # if the files are tagged as "bad", display them in red
         txtPaths.tag_configure("bad", background="red", foreground="white")
@@ -734,13 +758,13 @@ class Functionnectome_GUI(tk.Tk):
                     self.posSubName.config(to=lenPath)
                     self.subInPath.set(str(nameGuessed))
 
-        btnCancel = tk.Button(pasteWin, text="Cancel", command=cancel_btn)
+        btnCancel = tk.Button(pasteWin, text="Cancel", command=cancel_btn, highlightbackground=self.bg_color)
         btnCancel.grid(column=0, row=2)
 
-        btnClear = tk.Button(pasteWin, text="Clear", command=clear_btn)
+        btnClear = tk.Button(pasteWin, text="Clear", command=clear_btn, highlightbackground=self.bg_color)
         btnClear.grid(column=1, row=2)
 
-        btnOK = tk.Button(pasteWin, text="OK", command=ok_btn)
+        btnOK = tk.Button(pasteWin, text="OK", command=ok_btn, highlightbackground=self.bg_color)
         btnOK.grid(column=2, row=2)
 
     # %%

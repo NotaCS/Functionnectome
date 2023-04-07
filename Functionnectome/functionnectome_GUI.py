@@ -580,7 +580,7 @@ class Functionnectome_GUI(tk.Tk):
                 )
                 infolabel = ttk.Label(DLwindow,
                                       text='Downloading in progress... Check the terminal for more details.',
-                                      bg=self.bg_color)
+                                      )
                 infolabel.grid(column=0, row=0)
                 pb.grid(column=0, row=1)
                 pb.start()

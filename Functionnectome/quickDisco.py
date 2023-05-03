@@ -18,7 +18,6 @@ import json
 import argparse
 import fnmatch
 import multiprocessing
-from nibabel.processing import resample_from_to
 
 try:
     import Functionnectome.functionnectome as fun

@@ -514,7 +514,7 @@ def updateOldJson(jsonPath, priorsVal):
     return priorsVal
 
 
-def check_old_V2_priors(priorsPaths, currentLabel):
+def check_old_V2_priors(priorsPaths, currentLabel=None):
     old_names = [
         'priors_asso_proba3T.h5',
         'priors_cereb_proba3T.h5',

@@ -243,6 +243,9 @@ def main():
     parser.add_argument("-o", "--outDir", help="Path to the directory (or folder) "
                         "where the disconnectomes will be stored. If none is given, save them in the same "
                         "folder as their corresponding input (with 'qdisco_' as prefix).")
+    parser.add_argument('-pp', '--parallel_proc',
+                        default=1,
+                        help='Number of processes to launch, > 1 will parallelize the task.')
 
     args = parser.parse_args()
     # Convert relative path to absolute path (might be necessary)
@@ -254,6 +257,9 @@ def main():
     lesionFiles = args.inFiles
     h5Loc = args.priors
     outDir = args.outDir
+    pproc = int(args.parallel_proc)
+    if pproc < 1:
+        raise ValueError('The number of processes should be equal or more than 1')
     if h5Loc in list(h5Labels.keys()):
         priorsLoc = priors_paths[h5Labels[h5Loc]]
     elif os.path.splitext(h5Loc)[-1] == ".h5" and os.path.exists(h5Loc):
@@ -276,7 +282,7 @@ def main():
             raise FileNotFoundError(f'The output ({outDir}) directory does not exists.')
 
         if not os.path.exists(outF):
-            probaMap_fromROI(lesF, priorsLoc, priors_type, outF, maxVal=maxVal)
+            probaMap_fromROI(lesF, priorsLoc, priors_type, outF, pproc, maxVal=maxVal)
         else:
             print(f'{outF} already exists. Skipping.')
 

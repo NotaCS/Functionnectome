@@ -85,11 +85,12 @@ class Functionnectome_GUI(tk.Tk):
         self.ana_type.trace("w", self.activation_maskBtn)
         self.nb_parallel_proc = tk.StringVar()
         self.nb_parallel_proc.set("1")
-        self.priors = tk.StringVar()  # h5 or nii
-        self.priors.trace("w", self.activation_h5)
+        self.priors = tk.StringVar()  # (h5 or nii)
+        self.priors.set("h5")  # Used to be a choice, now enforce h5 only in the GUI
+        self.priorsFileList = list(PRIORS_H5)
         self.priorsChoice = tk.StringVar()
+        self.priorsChoice.set(self.priorsFileList[0])
         self.prior_path_h5 = ''  # Path to the h5 file (used when DL priors)
-        self.DLall = tk.BooleanVar()  # To check if all priors should be manually DLed
         self.priors_paths = {  # Initialize the dict (with the nii priors empty info)
             "template": "",
             "regions": "",
@@ -244,35 +245,22 @@ class Functionnectome_GUI(tk.Tk):
             textvariable=self.nb_parallel_proc,
             bg=self.bg_color
         )
+
         self.lbl4c = tk.Label(
-            self.fAna, text="Priors are stored as:", font="Helvetica 12 bold", bg=self.bg_color
+            self.fAna, text="Choice of priors: ", font="Helvetica 12 bold", bg=self.bg_color
         )
-        self.lbl4d = tk.Label(
-            self.fAna, text="Choice of priors:", font="Helvetica 12 bold", bg=self.bg_color
+        self.buttonPriors = tk.Button(
+            self.fAna, text="Select priors", command=self.selectPriors,  highlightbackground=self.bg_color
         )
-        self.lbl4e = tk.Label(
-            self.fAna, text="DL all:", font="Helvetica 12 bold", bg=self.bg_color
+        self.lblpriors1 = tk.Label(
+            self.fAna, text="Selected priors: ",
+            font="Helvetica 12 italic", bg=self.bg_color
         )
-        self.priorH5 = tk.Radiobutton(
-            self.fAna, text="One HDF5 file", variable=self.priors, value="h5", bg=self.bg_color
+        self.lblpriors2 = tk.Label(
+            self.fAna, textvariable=self.priorsChoice,
+            font="Helvetica 12 italic", bg=self.bg_color
         )
-        self.priorNii = tk.Radiobutton(
-            self.fAna, text="Multiple NIfTI files", variable=self.priors, value="nii", bg=self.bg_color
-        )
-        self.priorsFileList = list(PRIORS_H5)
-        self.h5files = ttk.Combobox(self.fAna,
-                                    values=self.priorsFileList,
-                                    textvariable=self.priorsChoice,
-                                    state="readonly",
-                                    background=self.bg_color,
-                                    foreground=self.bg_color)
         self.ana_type.set("voxel")
-        self.h5files.current(self.priorsFileList.index('V1.D.WB - Whole brain, Deterministic (legacy)'))
-        self.buttonDL = tk.Button(
-            self.fAna, text="Manual download", command=self.manualDLpriors,  highlightbackground=self.bg_color
-        )
-        self.chkDLall = tk.Checkbutton(self.fAna, variable=self.DLall, bg=self.bg_color)
-        self.priors.set("h5")
 
         self.fAna.grid(
             column=2,
@@ -286,19 +274,15 @@ class Functionnectome_GUI(tk.Tk):
             sticky="news",
         )
         self.lbl4a.grid(column=0, row=0, columnspan=2, sticky="W", padx=5, pady=5)
-        self.ana_region.grid(column=0, row=2, sticky="W")
-        self.ana_voxel.grid(column=0, row=3, sticky="W")
-        self.buttonMask.grid(column=0, row=4, padx=5, sticky="EW")
-        self.lbl4b.grid(column=0, row=5, padx=5, pady=10, sticky="W")
-        self.parallel_proc.grid(column=1, row=5, sticky="W")
-        self.lbl4c.grid(column=0, row=6, columnspan=2, sticky="W", padx=5, pady=5)
-        self.lbl4d.grid(column=1, row=6, columnspan=2, sticky="W", padx=5, pady=5)
-        self.priorH5.grid(column=0, row=7, sticky="W")
-        self.priorNii.grid(column=0, row=8, sticky="W")
-        self.h5files.grid(column=1, row=7, columnspan=3, sticky="WE")
-        self.buttonDL.grid(column=1, row=8)
-        self.chkDLall.grid(column=3, row=8)
-        self.lbl4e.grid(column=2, row=8)
+        self.ana_region.grid(column=0, row=2, columnspan=2, sticky="W")
+        self.ana_voxel.grid(column=0, row=3, columnspan=2, sticky="W")
+        self.buttonMask.grid(column=0, row=4, columnspan=2, padx=5, sticky="EW")
+        self.lbl4b.grid(column=0, row=5, columnspan=2, padx=5, pady=10, sticky="W")
+        self.parallel_proc.grid(column=2, row=5, sticky="W")
+        self.lbl4c.grid(column=0, row=6, columnspan=1, sticky="W", padx=5, pady=5)
+        self.buttonPriors.grid(column=1, row=6, columnspan=1, sticky="EW", padx=5, pady=5)
+        self.lblpriors1.grid(column=0, row=7, columnspan=1, sticky="W", padx=5, pady=5)
+        self.lblpriors2.grid(column=1, row=7, columnspan=2, sticky="W", padx=5, pady=5)
 
         # Bottom buttons
         self.saveBtn = tk.Button(self, text="Save", command=self.choseFileAndSave, highlightbackground=self.bg_color)
@@ -311,7 +295,7 @@ class Functionnectome_GUI(tk.Tk):
         self.lauchBtn.grid(column=2, row=3, padx=epad, pady=epad)
         self.quitBtn.grid(column=3, row=3, padx=epad, pady=epad)
 
-    # %% Onpen the window for masks selection
+    # %% Open the window for masks selection
     def get_masks(self):
         def cancel_btn():
             self.nbMasks.set(len(self.mask_paths))
@@ -457,6 +441,142 @@ class Functionnectome_GUI(tk.Tk):
         else:
             nbmask.set("subjectwise")
 
+    # %%  Open the window for priors selection
+    def selectPriors(self):
+        pkgPath = os.path.dirname(__file__)
+        jsonPath = os.path.join(pkgPath, "priors_paths.json")
+        if os.path.exists(jsonPath):
+            with open(jsonPath, "r") as jsonP:
+                self.priors_paths = json.load(jsonP)
+            self.priors_paths = fun.updateOldJson(jsonPath, self.priors_paths)
+        missingH5 = fun.find_missingH5(self.priors_paths)
+        DLedH5 = fun.find_dlwedH5(self.priors_paths)
+
+        def selectPriorsF(priors):
+            i = self.priorsFileList.index(priors)
+            ppath = filedialog.askopenfilename(
+                parent=top_priors,
+                initialdir=self.cwd,
+                title=f"Choose priors file for {priors}",
+                filetypes=[("HDF5 file", ".h5")],
+            )
+            if ppath:
+                self.priors_paths[priors] = ppath
+                with open(jsonPath, "w") as jsonP:
+                    json.dump(self.priors_paths, jsonP)
+                self.dlBool[i].set(False)
+                self.dlChecks[i].config(state="disabled")
+                self.selectWidgts[i].config(state="disabled")
+
+        def showPath(p):
+            ppath = self.priors_paths[p]
+            messagebox.showinfo("Priors local file path", ppath)
+
+        def manualDL():
+            checkBools = [b.get() for b in self.dlBool]
+            if not any(checkBools):
+                return
+            prior_dirpath_h5 = filedialog.askdirectory(
+                initialdir=self.cwd, parent=top_priors, title="Choose where to save the priors"
+            )
+            if prior_dirpath_h5:
+                self.cwd = prior_dirpath_h5
+                for i, priors in enumerate(self.priorsFileList):
+                    if checkBools[i]:
+                        print(f'Downloading: {priors}')
+                        pool = mp.Pool(processes=1)
+                        res = pool.apply_async(fun.Download_H5, (prior_dirpath_h5, priors))
+                        DLwindow = tk.Toplevel(self)
+                        DLwindow.title("Downloading")
+                        DLwindow.grab_set()
+                        pb = ttk.Progressbar(
+                            DLwindow,
+                            orient='horizontal',
+                            mode='indeterminate',
+                            length=280
+                        )
+                        infolabel = ttk.Label(DLwindow,
+                                              text='Downloading in progress... Check the terminal for more details.',
+                                              )
+                        infolabel.grid(column=0, row=0)
+                        pb.grid(column=0, row=1)
+                        pb.start()
+                        DLwindow.update()
+                        DLwindow.after(1000, self.check_if_running, res, pool, DLwindow)  # Also fill self.prior_path_h5
+                        self.wait_window(DLwindow)
+                        if os.path.exists(self.prior_path_h5):
+                            self.priors_paths[priors] = self.prior_path_h5
+                            with open(jsonPath, "w") as jsonP:
+                                json.dump(self.priors_paths, jsonP)
+                            self.dlBool[i].set(False)
+                            self.dlChecks[i].config(state="disabled")
+                            self.selectWidgts[i].config(state="disabled")
+
+        def ok_priorsBtn():
+            top_priors.destroy()
+            top_priors.update()
+
+        top_priors = tk.Toplevel(self)
+        top_priors.configure(background=self.bg_color)
+        top_priors.title("Priors selection and download")
+        top_priors.grab_set()
+
+        self.lblTitle = tk.Label(
+            top_priors, text="Selected the priors for the analysis:",
+            font="Helvetica 12 bold", bg=self.bg_color
+        )
+        self.lblDL = tk.Label(
+            top_priors, text="To download",
+            font="Helvetica 12 bold", bg=self.bg_color
+        )
+        self.radioListPriors = []
+        self.dlChecks = []
+        self.dlBool = []
+        self.selectWidgts = []
+        self.fun4button = []
+        for i, priors in enumerate(self.priorsFileList):
+            self.radioListPriors.append(
+                tk.Radiobutton(
+                    top_priors,
+                    text=priors,
+                    variable=self.priorsChoice,
+                    value=priors,
+                    bg=self.bg_color
+                )
+            )
+            self.dlBool.append(tk.BooleanVar())
+            self.dlChecks.append(
+                tk.Checkbutton(top_priors, variable=self.dlBool[i], bg=self.bg_color)
+            )
+            if priors in missingH5:
+                self.fun4button.append(lambda priors=priors: selectPriorsF(priors))
+                self.selectWidgts.append(
+                    tk.Button(top_priors, text="Select", command=self.fun4button[i],
+                              highlightbackground=self.bg_color)
+                )
+            elif priors in DLedH5:
+                self.fun4button.append(lambda priors=priors: showPath(priors))
+                self.selectWidgts.append(
+                    tk.Button(top_priors, text="View local path", command=self.fun4button[i],
+                              highlightbackground=self.bg_color)
+                )
+                self.dlChecks[i].config(state="disabled")
+        btn_DL = tk.Button(top_priors, text="Manual download", command=manualDL, highlightbackground=self.bg_color)
+        if len(missingH5) == 0:
+            btn_DL.config(state="disabled")
+        btn_ok = tk.Button(top_priors, text="OK", command=ok_priorsBtn, highlightbackground=self.bg_color)
+
+        self.lblTitle.grid(column=0, row=0, padx=5, pady=5, sticky="W")
+        self.lblDL.grid(column=1, row=0, padx=5, pady=5, sticky="W")
+        for i, priors in enumerate(self.priorsFileList):
+            self.radioListPriors[i].grid(column=0, row=i+1, padx=5, pady=5, sticky="W")
+            self.dlChecks[i].grid(column=1, row=i+1, sticky="EW")
+            self.selectWidgts[i].grid(column=2, row=i+1, padx=5, pady=5, sticky="W")
+
+        lastRow = len(self.radioListPriors) + 2
+        btn_DL.grid(column=1, row=lastRow - 1, sticky="ew")
+        btn_ok.grid(column=2, row=lastRow, sticky="ew")
+
     # %%
     def launchAna(self):  # Create output folder, close the GUI and run the analysis
         settingsTxt = self.saveSettings()
@@ -513,14 +633,6 @@ class Functionnectome_GUI(tk.Tk):
         else:
             messagebox.showinfo("Selected files", "No file selected yet.")
 
-    def activation_h5(self, *args):
-        if self.priors.get() == "h5":
-            self.h5files.state(statespec=["!disabled"])
-            self.buttonDL.config(state="normal")
-        elif self.priors.get() == "nii":
-            self.h5files.state(statespec=["disabled"])
-            self.buttonDL.config(state="disabled")
-
     def check_if_running(self, rez, mppool, window):
         """Check every second if the multiprocessing 'rez' process in 'mppool' is finished."""
         if not rez.ready():
@@ -529,78 +641,8 @@ class Functionnectome_GUI(tk.Tk):
         else:
             mppool.close()
             mppool.join()
-            if self.DLall.get():  # meaning the fun.DL_missingH5 function is running
-                self.priors_paths = rez.get()
-            else:  # meaning the fun.Download_H5 function is running
-                self.prior_path_h5 = rez.get()
+            self.prior_path_h5 = rez.get()
             window.destroy()
-
-    def manualDLpriors(self):
-        '''
-        Download the selected priors (if they are not already downloaded)
-        '''
-        # First check if there is a json file with the priors path
-        currentPriors = self.priorsChoice.get()
-        pkgPath = os.path.dirname(__file__)
-        jsonPath = os.path.join(pkgPath, "priors_paths.json")
-        if os.path.exists(jsonPath):
-            with open(jsonPath, "r") as jsonP:
-                self.priors_paths = json.load(jsonP)
-            self.priors_paths = fun.updateOldJson(jsonPath, self.priors_paths)
-        missingH5 = fun.find_missingH5(self.priors_paths)
-        if self.DLall.get() and not missingH5:
-            messagebox.showinfo("Already there", "All the priors have already been previously downloaded.")
-        elif (
-                not self.DLall.get()
-                and currentPriors in self.priors_paths.keys()
-                and os.path.exists(self.priors_paths[currentPriors])
-        ):
-            messagebox.showinfo("Already there", "The selected priors have already been previously downloaded.")
-        else:
-            priorFiles = [f for f in self.priors_paths.values() if os.path.exists(f)]
-            if len(priorFiles):
-                self.home = os.path.dirname(priorFiles[-1])
-            prior_dirpath_h5 = filedialog.askdirectory(
-                initialdir=self.home, parent=self, title="Choose where to save the priors"
-            )
-            if prior_dirpath_h5:
-                pool = mp.Pool(processes=1)
-                if self.DLall.get():
-                    res = pool.apply_async(fun.DL_missingH5, (self.priors_paths, prior_dirpath_h5))
-                else:
-                    res = pool.apply_async(fun.Download_H5, (prior_dirpath_h5, currentPriors))
-                DLwindow = tk.Toplevel(self)
-                DLwindow.title("Downloading")
-                DLwindow.grab_set()
-                pb = ttk.Progressbar(
-                    DLwindow,
-                    orient='horizontal',
-                    mode='indeterminate',
-                    length=280
-                )
-                infolabel = ttk.Label(DLwindow,
-                                      text='Downloading in progress... Check the terminal for more details.',
-                                      )
-                infolabel.grid(column=0, row=0)
-                pb.grid(column=0, row=1)
-                pb.start()
-                DLwindow.update()
-                DLwindow.after(1000, self.check_if_running, res, pool, DLwindow)
-                self.wait_window(DLwindow)
-                stillMissing = fun.find_missingH5(self.priors_paths)
-                if os.path.exists(self.prior_path_h5) and not self.DLall.get():
-                    self.priors_paths[currentPriors] = self.prior_path_h5
-                    with open(jsonPath, "w") as jsonP:
-                        json.dump(self.priors_paths, jsonP)
-                elif self.DLall.get() and not stillMissing:
-                    with open(jsonPath, "w") as jsonP:
-                        json.dump(self.priors_paths, jsonP)
-                else:
-                    messagebox.showwarning(
-                        title="Priors missing",
-                        message="The downloaded files cannot be found.\nCheck the folder you chose and retry.",
-                        parent=self,
-                    )
 
     def get_outDir(self):
         odir = self.outDir.get()

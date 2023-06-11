@@ -270,7 +270,49 @@ class Ask_hdf5_path(tk.Tk):
             self.destroy()
 
 
-# %% Main functions
+# %% Main functions  #TODO: Create a separate file with most functions
+
+def makeSettingsTxt(
+        results_dir_root, anatype, nb_of_batchs, prior_type, priorsH5, subIDpos,
+        maskOutput, subNb, bold_paths, mask_nb=0, masks_vox=[],
+        optSett=False, opt_h5_loc='', opt_template_path='', opt_pmap_vox_loc='',
+        opt_pmap_region_loc='', opt_regions_loc=''):
+    '''
+    Takes in all possible settings for the Functionnectome and output a text file that
+    cant be saved in a .fctnm file.
+    '''
+
+    if not maskOutput:
+        maskOutput = 1  # always mask the output with the template
+    settingsTxt = (
+        "Output folder:\n"
+        "\t" + results_dir_root + "\n"
+        "Analysis ('voxel' or 'region'):\n"
+        "\t" + anatype + "\n"
+        "Number of parallel processes:\n"
+        "\t" + str(nb_of_batchs) + "\n"
+        "Priors stored as ('h5' or 'nii'):\n"
+        "\t" + prior_type + "\n"
+        "HDF5 priors:\n"
+        "\t" + priorsH5 + "\n"
+        "Position of the subjects ID in their path:\n"
+        "\t" + str(subIDpos) + "\n"
+        "Mask the output:\n"
+        "\t" + str(maskOutput) + "\n"
+        "Number of subjects:\n"
+        "\t" + str(subNb) + "\n"
+        "Number of masks:\n"
+        "\t" + str(mask_nb) + "\n"
+        "Subject's BOLD paths:\n"
+        + "".join([subpath + "\n" for subpath in bold_paths])
+        + "\n"
+        "Masks for voxelwise analysis:\n"
+        + "".join([subpath + "\n" for subpath in masks_vox])
+    )
+    if optSett:
+        pass  # TODO
+    return settingsTxt
+
 
 def testInputType(inVal, inLab, dtypeLab, opt, forGUI):
     '''
@@ -1526,20 +1568,16 @@ def run_functionnectome(settingFilePath, from_GUI=False):
     else:
         raise Exception('Bad type of priors (not "nii" nor "h5")')
 
-    Path(results_dir_root).mkdir(
-        parents=True, exist_ok=True
-    )  # Create results_dir_root if needed
-    if (
-        not os.path.dirname(settingFilePath) == results_dir_root
-    ):  # If the setting file is imported from somewhere else
+    # Create results_dir_root if needed
+    Path(results_dir_root).mkdir(parents=True, exist_ok=True)
+    # If the setting file is imported from somewhere else
+    if not os.path.dirname(settingFilePath) == results_dir_root:
         n = 1
         fpath = os.path.join(results_dir_root, "settings.fcntm")  # Default name
         while os.path.exists(fpath):
             fpath = os.path.join(results_dir_root, f"settings{n}.fcntm")
             n += 1
-        shutil.copyfile(
-            settingFilePath, fpath
-        )  # Save the settings into the result directory
+        shutil.copyfile(settingFilePath, fpath)  # Save the settings into the result directory
 
     # Get the basic info about the input (shape, file header, list of regions, ...)
     if prior_type == "nii":
@@ -1749,6 +1787,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                     region_vol *= template_vol  # masking
                     if region_vol.sum():  # if region not empty
                         region_BOLD = bold_vol[np.where(region_vol)]
+                        np.nan_to_num(region_BOLD, copy=False)
                         regions_BOLD_median[reg] = np.median(region_BOLD, 0)
             elif prior_type == "h5":
                 with h5py.File(pmap_loc, "r") as h5fout:
@@ -1758,6 +1797,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
                         region_vol *= template_vol  # masking
                         if region_vol.sum():  # if region not empty
                             region_BOLD = bold_vol[np.where(region_vol)]
+                            np.nan_to_num(region_BOLD, copy=False)
                             regions_BOLD_median[reg] = np.median(region_BOLD, 0)
 
             # Release the RAM
@@ -1973,6 +2013,7 @@ def run_functionnectome(settingFilePath, from_GUI=False):
             bold_shape = bold_vol.shape
             # Select the voxels from the mask => makes a 2D array (flattened sptial x temporal)
             bold_vol_2D = bold_vol[ind_mask1]
+            np.nan_to_num(bold_vol_2D, copy=False)  # Removing NaN in place
             # Release the RAM
             bold_vol = bold_img = ind_mask1 = None
             bold_2D_shared = multiprocessing.RawArray(

@@ -878,31 +878,10 @@ class Functionnectome_GUI(tk.Tk):
         outputMask = str(self.wmMask.get())
         if not outputMask:
             outputMask = '1'  # always mask the output with the template
-        settingsTxt = (
-            "Output folder:\n"
-            "\t" + self.outDir.get() + "\n"
-            "Analysis ('voxel' or 'region'):\n"
-            "\t" + self.ana_type.get() + "\n"
-            "Number of parallel processes:\n"
-            "\t" + self.nb_parallel_proc.get() + "\n"
-            "Priors stored as ('h5' or 'nii'):\n"
-            "\t" + self.priors.get() + "\n"
-            "HDF5 priors:\n"
-            "\t" + self.priorsChoice.get() + "\n"
-            "Position of the subjects ID in their path:\n"
-            "\t" + posID + "\n"
-            "Mask the output:\n"
-            "\t" + outputMask + "\n"
-            "Number of subjects:\n"
-            "\t" + str(self.nbFiles.get()) + "\n"
-            "Number of masks:\n"
-            "\t" + str(self.nbMasks.get()) + "\n"
-            "Subject's BOLD paths:\n"
-            + "".join([subpath + "\n" for subpath in self.bold_paths])
-            + "\n"
-            "Masks for voxelwise analysis:\n"
-            + "".join([subpath + "\n" for subpath in self.mask_paths])
-        )
+        settingsTxt = fun.makeSettingsTxt(
+            self.outDir.get(), self.ana_type.get(), self.nb_parallel_proc.get(), self.priors.get(),
+            self.priorsChoice.get(), posID, outputMask, self.nbFiles.get(), self.bold_paths,
+            self.nbMasks.get(), self.mask_paths)
         return settingsTxt
 
     def choseFileAndSave(self):

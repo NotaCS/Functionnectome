@@ -278,8 +278,8 @@ def makeSettingsTxt(
         optSett=False, opt_h5_loc='', opt_template_path='', opt_pmap_vox_loc='',
         opt_pmap_region_loc='', opt_regions_loc=''):
     '''
-    Takes in all possible settings for the Functionnectome and output a text file that
-    cant be saved in a .fctnm file.
+    Takes in all possible settings for the Functionnectome and output a text that
+    can be saved in a .fctnm file.
     '''
 
     if not maskOutput:
@@ -310,7 +310,19 @@ def makeSettingsTxt(
         + "".join([subpath + "\n" for subpath in masks_vox])
     )
     if optSett:
-        pass  # TODO
+        settingsTxt += (
+            "\n###\n"
+            "HDF5 path:\n"
+            "\t" + opt_h5_loc + "\n"
+            "Template path:\n"
+            "\t" + opt_template_path + "\n"
+            "Probability maps (voxel) path:\n"
+            "\t" + opt_pmap_vox_loc + "\n"
+            "Probability maps (region) path:\n"
+            "\t" + opt_pmap_region_loc + "\n"
+            "Region masks path:\n"
+            "\t" + opt_regions_loc + "\n"
+        )
     return settingsTxt
 
 
@@ -1243,42 +1255,80 @@ def Voxelwise_functionnectome2(batch_num):
 # %%
 def run_functionnectome(settingFilePath, from_GUI=False):
     """
-    Main functionction. Run the computation and call the other functions.
+    Run the Functionnectome using a settings file (.fctm) to input arguments
 
     Parameters
     ----------
     settingFilePath : string
         Path to the settings file (.fcntm)
     """
+    # Read the setting file given to set the input variables
+    settingsVar = readSettings(settingFilePath)
+    Functionnectome(**settingsVar, from_GUI=from_GUI)
+
+
+# %%
+def Functionnectome(
+        results_dir_root, anatype, nb_of_batchs, prior_type, priorsH5, subIDpos,
+        maskOutput, subNb, bold_paths, mask_nb=0, masks_vox=[],
+        optSett=False, opt_h5_loc='', opt_template_path='', opt_pmap_vox_loc='',
+        opt_pmap_region_loc='', opt_regions_loc='', from_GUI=False):
+    '''
+    Main function. Run the computation and call the other functions.
+
+    Parameters
+    ----------
+    results_dir_root : str
+        Output directory path.
+    anatype : str
+        Type of analysis to run, voxelwise or regionwise ("voxel" or "region").
+    nb_of_batchs : int
+        Number of processes (batchs) to launch in parallel.
+    prior_type : str
+        Type of storage for the priors, Nifty or HDF5 ("nii" or "h5").
+    priorsH5 : str
+        Label identifying the HDF5 priors to be used.
+    subIDpos : int
+        Position, in the bold file path, of the identifier for each input volume.
+    maskOutput : str
+        '0' or '1' (should be a bool in fact), whether to remove signal out of the brain template
+        on the output functionnectome volume. Default is 1 and should probably always be.
+        OR
+        Can also be the path to a white matter mask defining the voxels where the Functionnectome
+        will be computed. This can significantly shorten the computation time.
+    subNb : int
+        Number of input functional files.
+    bold_paths : list
+        List of all the input functional files (str).
+    mask_nb : int, optional
+        Number of grey matter mask given. Can be 1 (same mask for all),
+        or the same as bold_paths (one mask per input volume), or 0 in case of regionwise
+        analysis. The default is 0.
+    masks_vox : list, optional
+        List of the grey matter masks file paths (str). The default is [].
+    optSett : bool, optional
+        Whether or not there are optional settings (see below, opt_* arguments).
+        Using them supersedes the settings given by the 'normal' arguments. The default is False.
+    opt_h5_loc : str, optional
+        File path to a custom HDF5 priors file to be used for the analysis. The default is ''.
+    opt_template_path : str, optional
+        File path to a brain template (needs to be MNI 2x2x2).
+        Required when using custom nifti priors.The default is ''.
+    opt_pmap_vox_loc : str, optional
+        Path to the folder containing custom nifti voxelwise priors. The default is ''.
+    opt_pmap_region_loc : str, optional
+        Path to the folder containing custom nifti regionwise priors. The default is ''.
+        Also requires opt_regions_loc.
+    opt_regions_loc : str, optional
+        Path to the folder containing the masks for each region used in the custom
+        nifti regionwise priors of opt_pmap_region_loc. The default is ''.
+
+    '''
+
     print("Process starting...")
     st = time.time()
 
-    print("Loading settings")
-    # Read the setting file given to set the input variables
-    settingsVar = readSettings(settingFilePath)
-
-    results_dir_root = settingsVar['results_dir_root']
-    anatype = settingsVar['anatype']
-    nb_of_batchs = settingsVar['nb_of_batchs']
-    prior_type = settingsVar['prior_type']
-    priorsH5 = settingsVar['priorsH5']
-    subIDpos = settingsVar['subIDpos']
-    maskOutput = settingsVar['maskOutput']
-    subNb = settingsVar['subNb']
-    bold_paths = settingsVar['bold_paths']
-    if anatype == "voxel":
-        mask_nb = settingsVar['mask_nb']
-        masks_vox = settingsVar['masks_vox']
-
-    optSett = settingsVar['optSett']
-    if optSett:
-        opt_h5_loc = settingsVar['opt_h5_loc']
-        opt_template_path = settingsVar['opt_template_path']
-        opt_pmap_vox_loc = settingsVar['opt_pmap_vox_loc']
-        opt_pmap_region_loc = settingsVar['opt_pmap_region_loc']
-        opt_regions_loc = settingsVar['opt_regions_loc']
-
-    # %% Checking for the existence of priors and asking what to do if none found
+    # Checking for the existence of priors and asking what to do if none found
     if not optSett:  # If non default priors are used, override this
         pkgPath = os.path.dirname(__file__)
         jsonPath = os.path.join(pkgPath, "priors_paths.json")
@@ -1570,14 +1620,20 @@ def run_functionnectome(settingFilePath, from_GUI=False):
 
     # Create results_dir_root if needed
     Path(results_dir_root).mkdir(parents=True, exist_ok=True)
-    # If the setting file is imported from somewhere else
-    if not os.path.dirname(settingFilePath) == results_dir_root:
-        n = 1
+    # Save the settings in the output folder. May create duplicates of the .fcntm file, but no big deal.
+    if not from_GUI:  # The GUI already makes a save
+        settingsTxt = makeSettingsTxt(
+            results_dir_root, anatype, nb_of_batchs, prior_type, priorsH5, subIDpos,
+            maskOutput, subNb, bold_paths, mask_nb, masks_vox,
+            optSett, opt_h5_loc, opt_template_path, opt_pmap_vox_loc,
+            opt_pmap_region_loc, opt_regions_loc)
         fpath = os.path.join(results_dir_root, "settings.fcntm")  # Default name
+        n = 1
         while os.path.exists(fpath):
             fpath = os.path.join(results_dir_root, f"settings{n}.fcntm")
             n += 1
-        shutil.copyfile(settingFilePath, fpath)  # Save the settings into the result directory
+        with open(fpath, "w+") as f:
+            f.write(settingsTxt)
 
     # Get the basic info about the input (shape, file header, list of regions, ...)
     if prior_type == "nii":

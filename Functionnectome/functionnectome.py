@@ -14,6 +14,8 @@ Data is imported as float32 for all volumes, to simplify and speed up computatio
 TODO:Regionwise and voxelwise analyses started quite differently, but they kind of
 converged on the same algorithm, so I might have to fuse them together later...
 
+TODO: Refactor everything
+
 Possibility to add a white matter mask to speed up computation: in the settings file,
 change the 'Mask the output:' value (probably '1') t the file-path of the mask.
 """
@@ -1686,6 +1688,11 @@ def Functionnectome(
                 for key in header3D.keys():
                     header3D[key] = hdr3D[key]
                 affine3D = header3D.get_sform()
+
+    if not optSett:
+        print(f'Process will use {prior_type} priors {priorsH5 if prior_type=="h5" else ""}')
+    else:
+        print(f'Process will use custom {prior_type} priors {opt_h5_loc if prior_type=="h5" else ""}')
 
     # Load the white matter mask (if available)
     wm_mask = None

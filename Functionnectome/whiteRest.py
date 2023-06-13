@@ -394,7 +394,7 @@ def main():
     discoIn = args.disco
     proc = int(args.multiproc)
 
-    if RSNlabels_f is not None:
+    if RSNlabels_f is None:
         pkgPath = os.path.dirname(__file__)
         RSNlabels_f = os.path.join(pkgPath, 'WhiteRest_labels.txt')
     else:

@@ -1,0 +1,31 @@
+RSN number	RSN name
+RSN01	Lat. Occ.
+RSN02	Lat. Post. Occ.
+RSN03	Med. Occ.
+RSN04	Med. Post. Occ. / Primary visual
+RSN05	Post. Occ.
+RSN06	Precentral / Motor
+RSN07	Sup. Central / SM body
+RSN08	Mid. Central (L) / SM hand (R)
+RSN09	Mid. Central (R) / SM hand (L)
+RSN10	Inf. Central / SM head
+RSN11	Primary auditory
+RSN12	Ant. Sup. Par.
+RSN13	Sup. Par. / Dorsal attention
+RSN14	Post. Sup. Par.
+RSN15	Medial-frontal
+RSN16	PP-Precuneal / Posterior DMN
+RSN17	PC-Precuneal / Dorsal DMN
+RSN18	Precuneus / DMN proper
+RSN19	PH-Precuneal / Parahippocampal DMN
+RSN20	Left Inf. frontal / Language production
+RSN21	FPT 1 (L)
+RSN22	FPT 1 (R)
+RSN23	FPT 2 (L)
+RSN24	FPT 2 (R)
+RSN25	FPT 3 (L) / Language comprehension
+RSN26	FPT 3 (R)
+RSN27	Anterior cingulate
+RSN28	dlPFC
+RSN29	Insula / Salience
+RSN30	Cingulo-opercular

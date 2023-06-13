@@ -26,8 +26,8 @@ to a spreadsheet software (such as Excel) for further processing.
 The software also gives the possibility to save a pie-chart summary of the results.
 
 
-*: The atlas and label files can be downloaded from:
-    https://www.dropbox.com/s/u9c3t2r1d60mlpm/WhiteRest.zip?dl=0
+*: The atlas and label files can be downloaded from the OSF website:
+    https://doi.org/10.17605/OSF.IO/FB9UC
 or, if there is a problem with the link, uppon request to:
     nozais.victor@gmail.com
 **: Disconnectome original paper: https://doi.org/10.1038/s41467-020-18920-9
@@ -62,8 +62,6 @@ def _build_arg_parser():
                    help='Path of the ROI file (.nii, .nii.gz).')
     p.add_argument('atlas_maps',
                    help='Path of the RSN atlas (.nii, nii.gz).')
-    p.add_argument('atlas_labels',
-                   help='Path to the atlas labels identifying the RSNs.')
 
     # Optional arguments
     p.add_argument('-s', '--score',
@@ -94,6 +92,8 @@ def _build_arg_parser():
     p.add_argument('-m', '--multiproc',
                    default=1,
                    help='Number of processes to run in parallel (default = 1).')
+    p.add_argument('-l', '--atlas_labels',
+                   help='(optional) Path to the atlas labels identifying the RSNs, when using custom labels).')
     return p
 
 
@@ -394,10 +394,15 @@ def main():
     discoIn = args.disco
     proc = int(args.multiproc)
 
+    if RSNlabels_f is not None:
+        pkgPath = os.path.dirname(__file__)
+        RSNlabels_f = os.path.join(pkgPath, 'WhiteRest_labels.txt')
+    else:
+        checkInFile(parser, RSNlabels_f)
+
     checkScore(parser, score, discoIn, args.out_pie)
     checkInFile(parser, ROI_f)
     checkInFile(parser, atlas_f)
-    checkInFile(parser, RSNlabels_f)
 
     if args.out_table:
         checkOutFile(parser, args.out_table)

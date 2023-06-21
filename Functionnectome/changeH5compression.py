@@ -39,6 +39,8 @@ def changeCompPriors(inF, outF, compType='lzf', comptStr=4, thr=None, verbose=Tr
         If True, print the number of maps left every once in a while. Default is True.
 
     """
+    if compType == 'lzf':
+        comptStr = None
 
     with h5py.File(outF, "a") as h5fout:
         with h5py.File(inF, "r") as h5fin:
@@ -48,9 +50,11 @@ def changeCompPriors(inF, outF, compType='lzf', comptStr=4, thr=None, verbose=Tr
             grp_reg = h5fout.create_group('tract_region')
             grp_reg.attrs['header'] = h5fin['tract_region'].attrs['header']
             regs = h5fin['tract_region'].keys()
+            if verbose and len(regs) > 1:
+                print('Regionwise priors')
             for ii, reg in enumerate(regs):
-                if ii % 5 == 0 and verbose:
-                    print(f'{ii}/{len(regs)}')
+                if verbose and ii % 5 == 0:
+                    print(f'{ii+1}/{len(regs)}')
                 vol = h5fin['tract_region'][reg][:]
                 if thr:
                     vol[vol <= thr] = 0
@@ -60,9 +64,11 @@ def changeCompPriors(inF, outF, compType='lzf', comptStr=4, thr=None, verbose=Tr
             grp_vox = h5fout.create_group('tract_voxel')
             grp_vox.attrs['header'] = h5fin['tract_voxel'].attrs['header']
             voxs = h5fin['tract_voxel'].keys()
+            if verbose and len(voxs) > 1:
+                print('Voxelwise priors')
             for ii, vox in enumerate(voxs):
                 if ii % 1000 == 0 and verbose:
-                    print(f'{ii}/{len(voxs)}')
+                    print(f'{ii//1000}k/{len(voxs)//1000}k')
                 vol = h5fin['tract_voxel'][vox][:]
                 if thr:
                     vol[vol <= thr] = 0

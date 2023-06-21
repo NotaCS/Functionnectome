@@ -46,7 +46,7 @@ def header2string(header):
     return hdr_cleaned
 
 
-def run_h5maker(outFile, templatePath, dirVoxel, dirRegion, maskRegion):
+def run_h5maker(outFile, templatePath, dirVoxel, dirRegion, maskRegion, comp='gzip'):
     '''
     Create a new HDF5 priors file using the voxel-wise and region-wise probabily maps provided.
 
@@ -117,7 +117,7 @@ def run_h5maker(outFile, templatePath, dirVoxel, dirRegion, maskRegion):
             reg_ID = pmapF[:indvox]
             reg_img = nib.load(os.path.join(dirRegion, pmapF))
             reg = grp_reg.create_dataset(reg_ID, reg_img.shape, reg_img.get_data_dtype(),
-                                         compression="gzip", chunks=shape3D)
+                                         compression=comp, chunks=shape3D)
             try:
                 reg[:] = reg_img.get_fdata(dtype=reg_img.get_data_dtype())
             except ValueError:
@@ -125,7 +125,7 @@ def run_h5maker(outFile, templatePath, dirVoxel, dirRegion, maskRegion):
 
             regm_img = nib.load(os.path.join(maskRegion, pmapF))
             regm = grp_mreg.create_dataset(reg_ID, regm_img.shape, regm_img.get_data_dtype(),
-                                           compression="gzip", chunks=shape3D)
+                                           compression=comp, chunks=shape3D)
             try:
                 regm[:] = regm_img.get_fdata(dtype=regm_img.get_data_dtype())
             except ValueError:
@@ -138,7 +138,7 @@ def run_h5maker(outFile, templatePath, dirVoxel, dirRegion, maskRegion):
             vox_ID = pmapF[indvox1:indvox2]  # Keeping only the voxel coordinates
             vox_img = nib.load(os.path.join(dirVoxel, pmapF))
             vox = grp_vox.create_dataset(vox_ID, vox_img.shape, vox_img.get_data_dtype(),
-                                         compression="gzip", chunks=shape3D)
+                                         compression=comp, chunks=shape3D)
             try:
                 vox[:] = vox_img.get_fdata(dtype=vox_img.get_data_dtype())
             except ValueError:
@@ -158,7 +158,7 @@ def main():
         'contain a "_". "xx", "yy", and "zz" are the spatial coordinates of the specific voxel linked'
         "to the given probability map.\n"
         "The region-wise probability maps and their associated region masks must have the same name")
-        )
+    )
     parser.add_argument("-o", "--H5file", help="Path to the generated HDF5 file (output)."
                         "Should end with the '.h5' extension", required=True)
     parser.add_argument("-tpl", "--templateFile", help="Path to the brain template used for masking",
@@ -170,6 +170,9 @@ def main():
     parser.add_argument("-rmas", "--regionMasksDir", help="Path to the directory (or folder) "
                         "containing the masks of the regions corresponding to the region-wise priors",
                         required=True)
+    parser.add_argument("-c", "--compression", help="Compression algo: 'gzip' (strong but slow to read) "
+                        "or 'lzf' (light but fast to read). Default is 'gzip'.",
+                        default='gzip', choices=['gzip', 'lzf'])
 
     args = parser.parse_args()
 
@@ -177,7 +180,8 @@ def main():
     for iarg in vars(args):
         setattr(args, iarg, os.path.abspath(getattr(args, iarg)))
 
-    run_h5maker(args.H5file, args.templateFile, args.voxelsDir, args.regionsDir, args.regionMasksDir)
+    run_h5maker(args.H5file, args.templateFile, args.voxelsDir,
+                args.regionsDir, args.regionMasksDir, args.compression)
 
 
 if __name__ == '__main__':

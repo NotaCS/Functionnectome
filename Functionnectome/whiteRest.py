@@ -130,7 +130,7 @@ def checkInFile(parser, path):
     path = os.path.abspath(path)
     if not os.path.isfile(path):
         parser.error(
-            f"The input file '{path}' does not exists. Check and correct the path, then retry."
+            f"The input file '{path}' does not exist. Check and correct the path, then retry."
         )
 
 

@@ -584,7 +584,7 @@ class Functionnectome_GUI(tk.Tk):
         customRadio = tk.Radiobutton(
             top_priors,
             text="Custom priors",
-            variable=self.priorsChoice,  # TODO: Check if custom variable filled when exiting window
+            variable=self.priorsChoice,
             value="Custom priors",
             bg=self.bg_color
         )

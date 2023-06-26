@@ -41,13 +41,13 @@ import argparse
 import os
 
 try:
-    from Functionnectome.quickDisco import probaMap_fromROI, checkH5
+    from Functionnectome.quickDisco import probaMap_fromMask, checkH5
 except ModuleNotFoundError:
     print(
         "The Functionnectome module was not found (probably not installed via pip)."
         " Importing functions from the folder where the current script was saved..."
     )
-    from functionnectome import probaMap_fromROI, checkH5
+    from functionnectome import probaMap_fromMask, checkH5
 
 pd.set_option("display.max_rows", None, "display.max_columns", None)
 
@@ -193,7 +193,7 @@ def computDiscROver(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False, save
             )
             raise FileNotFoundError(txtError)
         priorsF = priors_paths['V1.D.WB - Whole brain, Deterministic (legacy)']
-        discoI = probaMap_fromROI(ROI_f, priorsF, 'h5', proc=proc, maxVal=True)
+        discoI = probaMap_fromMask(ROI_f, priorsF, 'h5', proc=proc, maxVal=True)
         discoV = discoI.get_fdata(dtype='float32')
         if saveDisco:
             nib.save(discoI, saveDisco)

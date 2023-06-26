@@ -79,8 +79,59 @@ def probaMapMulti(batchVox):
     return outMap
 
 
-def probaMap_fromROI(roiFile, priorsLoc, priors_type,
-                     outFile=None, proc=1, maxVal=False, templateFile=None):
+def probaMap_fromROI(roiVol, priorsLoc, templShape, priors_type='h5', proc=1, maxVal=True):
+    """
+    See probaMap_fromMask description for help on the arguments
+    """
+
+    listVox = np.argwhere(roiVol)
+    outMap = np.zeros(templShape)
+
+    if proc == 1:
+        if priors_type == "h5":
+            with h5py.File(priorsLoc, "r") as h5fout:
+                for indvox in listVox:
+                    try:
+                        priorMap = h5fout["tract_voxel"][f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"][:]
+                    except KeyError:  # The voxel is not part of the current priors. May happen with split priors
+                        continue
+                    if maxVal:
+                        outMap = np.max(np.stack((outMap, priorMap)), 0)
+                    else:
+                        outMap += priorMap
+        else:
+            for indvox in listVox:
+                try:
+                    mapf = f"probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz"
+                    vox_pmap_img = nib.load(os.path.join(priorsLoc, mapf))
+                except FileNotFoundError:
+                    mapf = f"probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii"
+                    vox_pmap_img = nib.load(os.path.join(priorsLoc, mapf))
+                except KeyError:  # The voxel is not part of the current priors. May happen with split priors
+                    continue
+                priorMap = vox_pmap_img.get_fdata()
+                if maxVal:
+                    outMap = np.max(np.stack((outMap, priorMap)), 0)
+                else:
+                    outMap += priorMap
+    elif proc > 1:
+        batchVox = np.array_split(listVox, proc)
+        with multiprocessing.Pool(
+            processes=proc,
+            initializer=init_worker,
+            initargs=(priors_type, priorsLoc, templShape, maxVal),
+        ) as pool:
+            out_batch_disco = pool.map_async(probaMapMulti, batchVox)
+            out_batch_disco = out_batch_disco.get()
+        if maxVal:
+            outMap = np.max(np.stack(out_batch_disco), 0)
+        else:
+            outMap = np.sum(np.stack(out_batch_disco), 0)
+    return outMap
+
+
+def probaMap_fromMask(roiFile, priorsLoc, priors_type,
+                      outFile=None, proc=1, maxVal=False, templateFile=None):
     """
     Read the ROI and the associated maps, then create and save the new map
 
@@ -133,49 +184,7 @@ def probaMap_fromROI(roiFile, priorsLoc, priors_type,
     roiIm = fun.checkOrient_load(roiIm, templShape, affine3D, 0, True)
     roiVol = roiIm.get_fdata().astype(bool)
 
-    listVox = np.argwhere(roiVol)
-    outMap = np.zeros(templShape)
-
-    if proc == 1:
-        if priors_type == "h5":
-            with h5py.File(priorsLoc, "r") as h5fout:
-                for indvox in listVox:
-                    try:
-                        priorMap = h5fout["tract_voxel"][f"{indvox[0]}_{indvox[1]}_{indvox[2]}_vox"][:]
-                    except KeyError:  # The voxel is not part of the current priors. May happen with split priors
-                        continue
-                    if maxVal:
-                        outMap = np.max(np.stack((outMap, priorMap)), 0)
-                    else:
-                        outMap += priorMap
-        else:
-            for indvox in listVox:
-                try:
-                    mapf = f"probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii.gz"
-                    vox_pmap_img = nib.load(os.path.join(priorsLoc, mapf))
-                except FileNotFoundError:
-                    mapf = f"probaMaps_{indvox[0]}_{indvox[1]}_{indvox[2]}_vox.nii"
-                    vox_pmap_img = nib.load(os.path.join(priorsLoc, mapf))
-                except KeyError:  # The voxel is not part of the current priors. May happen with split priors
-                    continue
-                priorMap = vox_pmap_img.get_fdata()
-                if maxVal:
-                    outMap = np.max(np.stack((outMap, priorMap)), 0)
-                else:
-                    outMap += priorMap
-    elif proc > 1:
-        batchVox = np.array_split(listVox, proc)
-        with multiprocessing.Pool(
-            processes=proc,
-            initializer=init_worker,
-            initargs=(priors_type, priorsLoc, templShape, maxVal),
-        ) as pool:
-            out_batch_disco = pool.map_async(probaMapMulti, batchVox)
-            out_batch_disco = out_batch_disco.get()
-        if maxVal:
-            outMap = np.max(np.stack(out_batch_disco), 0)
-        else:
-            outMap = np.sum(np.stack(out_batch_disco), 0)
+    outMap = probaMap_fromROI(roiVol, priorsLoc, templShape, priors_type, proc, maxVal)
 
     outIm = nib.Nifti1Image(outMap, affine3D)
     if outFile:
@@ -282,7 +291,7 @@ def main():
             raise FileNotFoundError(f'The output ({outDir}) directory does not exists.')
 
         if not os.path.exists(outF):
-            probaMap_fromROI(lesF, priorsLoc, priors_type, outF, pproc, maxVal=maxVal)
+            probaMap_fromMask(lesF, priorsLoc, priors_type, outF, pproc, maxVal=maxVal)
         else:
             print(f'{outF} already exists. Skipping.')
 

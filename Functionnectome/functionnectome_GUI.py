@@ -26,18 +26,10 @@ from pathlib import Path
 import pkg_resources
 import darkdetect
 
-try:
-    import Functionnectome.functionnectome as fun
-    from Functionnectome.functionnectome import PRIORS_H5  # , PRIORS_URL, PRIORS_ZIP
-    version = pkg_resources.require("Functionnectome")[0].version
-except ModuleNotFoundError:
-    print(
-        "The Functionnectome module was not found (probably not installed via pip)."
-        " Importing functions from the folder where the current script was saved..."
-    )
-    import functionnectome as fun
-    from functionnectome import PRIORS_H5  # , PRIORS_URL, PRIORS_ZIP
-    version = ''
+
+import Functionnectome.functionnectome as fun
+from Functionnectome.functionnectome import PRIORS_H5, PRIORS_TYPE  # , PRIORS_URL, PRIORS_ZIP
+version = pkg_resources.require("Functionnectome")[0].version
 
 
 class Functionnectome_GUI(tk.Tk):
@@ -87,9 +79,11 @@ class Functionnectome_GUI(tk.Tk):
         self.nb_parallel_proc.set("1")
         self.priors = tk.StringVar()  # (h5 or nii)
         self.priors.set("h5")  # Used to be a choice, now enforce h5 only in the GUI
-        self.priorsFileList = list(PRIORS_H5)
+        self.priorsFileList = PRIORS_H5
+        self.priorsTypeAvail = PRIORS_TYPE
         self.priorsChoice = tk.StringVar()
         self.priorsChoice.set(self.priorsFileList[0])
+        self.customPriors = tk.StringVar()
         self.prior_path_h5 = ''  # Path to the h5 file (used when DL priors)
         self.priors_paths = {  # Initialize the dict (with the nii priors empty info)
             "template": "",
@@ -461,6 +455,7 @@ class Functionnectome_GUI(tk.Tk):
                 filetypes=[("HDF5 file", ".h5")],
             )
             if ppath:
+                self.cwd = os.path.dirname(ppath)
                 self.priors_paths[priors] = ppath
                 with open(jsonPath, "w") as jsonP:
                     json.dump(self.priors_paths, jsonP)
@@ -468,9 +463,23 @@ class Functionnectome_GUI(tk.Tk):
                 self.dlChecks[i].config(state="disabled")
                 self.selectWidgts[i].config(state="disabled")
 
+        def selectCustomF():
+            customPath = filedialog.askopenfilename(
+                parent=top_priors,
+                initialdir=self.cwd,
+                title="Choose custom priors file",
+                filetypes=[("HDF5 file", ".h5")],
+            )
+            if customPath:
+                self.cwd = os.path.dirname(customPath)
+                self.customPriors.set(customPath)
+
         def showPath(p):
             ppath = self.priors_paths[p]
             messagebox.showinfo("Priors local file path", ppath)
+
+        def showCustom():
+            messagebox.showinfo("Custom priors file path", self.customPriors.get())
 
         def manualDL():
             checkBools = [b.get() for b in self.dlBool]
@@ -534,7 +543,7 @@ class Functionnectome_GUI(tk.Tk):
         self.dlBool = []
         self.selectWidgts = []
         self.fun4button = []
-        for i, priors in enumerate(self.priorsFileList):
+        for i, (priors, ptype) in enumerate(zip(self.priorsFileList, self.priorsTypeAvail)):
             self.radioListPriors.append(
                 tk.Radiobutton(
                     top_priors,
@@ -544,6 +553,13 @@ class Functionnectome_GUI(tk.Tk):
                     bg=self.bg_color
                 )
             )
+            if (
+                    self.ana_type.get() == 'voxel' and not ptype['voxelwise']
+                    or
+                    self.ana_type.get() == 'region' and not ptype['regionwise']
+            ):
+                self.radioListPriors[-1].config(state="disabled")
+
             self.dlBool.append(tk.BooleanVar())
             self.dlChecks.append(
                 tk.Checkbutton(top_priors, variable=self.dlBool[i], bg=self.bg_color)
@@ -564,6 +580,24 @@ class Functionnectome_GUI(tk.Tk):
         btn_DL = tk.Button(top_priors, text="Manual download", command=manualDL, highlightbackground=self.bg_color)
         if len(missingH5) == 0:
             btn_DL.config(state="disabled")
+
+        customRadio = tk.Radiobutton(
+            top_priors,
+            text="Custom priors",
+            variable=self.priorsChoice,  # TODO: Check if custom variable filled when exiting window
+            value="Custom priors",
+            bg=self.bg_color
+        )
+        customSelectBtn = tk.Button(
+            top_priors, text="Select", command=selectCustomF,
+            highlightbackground=self.bg_color
+        )
+        customShowBtn = tk.Button(
+            top_priors, text="View selected file",
+            command=showCustom,
+            highlightbackground=self.bg_color
+        )
+
         btn_ok = tk.Button(top_priors, text="OK", command=ok_priorsBtn, highlightbackground=self.bg_color)
 
         self.lblTitle.grid(column=0, row=0, padx=5, pady=5, sticky="W")
@@ -573,9 +607,12 @@ class Functionnectome_GUI(tk.Tk):
             self.dlChecks[i].grid(column=1, row=i+1, sticky="EW")
             self.selectWidgts[i].grid(column=2, row=i+1, padx=5, pady=5, sticky="W")
 
-        lastRow = len(self.radioListPriors) + 2
-        btn_DL.grid(column=1, row=lastRow - 1, sticky="ew")
-        btn_ok.grid(column=2, row=lastRow, sticky="ew")
+        lastRow = len(self.radioListPriors) + 3
+        btn_DL.grid(column=1, row=lastRow - 2, sticky="w")
+        customRadio.grid(column=0, row=lastRow - 1, sticky="ew")
+        customSelectBtn.grid(column=1, row=lastRow - 1, sticky="ew")
+        customShowBtn.grid(column=2, row=lastRow - 1, sticky="ew")
+        btn_ok.grid(column=0, row=lastRow, sticky="ew")
 
     # %%
     def launchAna(self):  # Create output folder, close the GUI and run the analysis
@@ -878,10 +915,44 @@ class Functionnectome_GUI(tk.Tk):
         outputMask = str(self.wmMask.get())
         if not outputMask:
             outputMask = '1'  # always mask the output with the template
-        settingsTxt = fun.makeSettingsTxt(
-            self.outDir.get(), self.ana_type.get(), self.nb_parallel_proc.get(), self.priors.get(),
-            self.priorsChoice.get(), posID, outputMask, self.nbFiles.get(), self.bold_paths,
-            self.nbMasks.get(), self.mask_paths)
+
+        if self.priorsChoice.get() == "Custom priors":
+            if os.path.isfile(self.customPriors.get()):
+                settingsTxt = fun.makeSettingsTxt(
+                    self.outDir.get(), self.ana_type.get(), self.nb_parallel_proc.get(), self.priors.get(),
+                    self.priorsChoice.get(), posID, outputMask, self.nbFiles.get(), self.bold_paths,
+                    self.nbMasks.get(), self.mask_paths,
+                    optSett=True, opt_h5_loc=self.customPriors.get()
+                )
+            else:
+                messagebox.showwarning(
+                    "No correct custom priors",
+                    (
+                        "The priors chosen for the analysis are custom priors. However, no correct "
+                        f"file was detected following the given file path ({self.customPriors.get()})."
+                    ),
+                    parent=self,
+                )
+                return 0
+        else:
+            idPriors = PRIORS_H5.index(self.priorsChoice.get())
+            ptype = PRIORS_TYPE[idPriors]
+            if (
+                    self.ana_type.get() == 'voxel' and not ptype['voxelwise']
+                    or
+                    self.ana_type.get() == 'region' and not ptype['regionwise']
+            ):
+                messagebox.showwarning(
+                    "Unavailable priors type",
+                    f"Sorry, the {self.ana_type.get()}wise analysis is not available with the chosen priors ",
+                    parent=self,
+                )
+                return 0
+            else:
+                settingsTxt = fun.makeSettingsTxt(
+                    self.outDir.get(), self.ana_type.get(), self.nb_parallel_proc.get(), self.priors.get(),
+                    self.priorsChoice.get(), posID, outputMask, self.nbFiles.get(), self.bold_paths,
+                    self.nbMasks.get(), self.mask_paths)
         return settingsTxt
 
     def choseFileAndSave(self):

@@ -59,50 +59,36 @@ PRIORS_INFO = (
      'https://osf.io/r6j29/download',
      # "https://www.dropbox.com/s/6olyvp1zzitvyph/priors_full_proba_3T.h5.zip?dl=1",
      "priors_full_proba_3T.h5.zip",
-     {'regionwise': False,
-      'voxelwise': True},
      ),
     ('V2.P.Asso - Association, Probabilistic',
      'https://osf.io/xzbg5/download',
      # "https://www.dropbox.com/s/j1wctouunoqk11k/priors_asso_proba_3T.h5.zip?dl=1",
      "priors_asso_proba_3T.h5.zip",
-     {'regionwise': False,
-      'voxelwise': True},
      ),
     ('V2.P.Asso.S - Association short, Probabilistic',
      'https://osf.io/v35km/download',
      # "https://www.dropbox.com/s/e4sm2uk5y01yqnb/priors_asso_short_proba_3T.h5.zip?dl=1",
      "priors_asso_short_proba_3T.h5.zip",
-     {'regionwise': False,
-      'voxelwise': True},
      ),
     ('V2.P.Asso.M - Association medium, Probabilistic',
      'https://osf.io/mua53/download',
      # "https://www.dropbox.com/s/ni6kvtt8azup1cn/priors_asso_medium_proba_3T.h5.zip?dl=1",
      "priors_asso_medium_proba_3T.h5.zip",
-     {'regionwise': False,
-      'voxelwise': True},
      ),
     ('V2.P.Asso.L - Association long, Probabilistic',
      'https://osf.io/7s8d4/download',
      # "https://www.dropbox.com/s/lskac1gkwa001u8/priors_asso_long_proba_3T.h5.zip?dl=1",
      "priors_asso_long_proba_3T.h5.zip",
-     {'regionwise': False,
-      'voxelwise': True},
      ),
     ('V2.P.Proj - Projection, Probabilistic',
      'https://osf.io/vjqwy/download',
      # "https://www.dropbox.com/s/311leci5cd7zkgd/priors_proj_proba_3T.h5.zip?dl=1",
      "priors_proj_proba_3T.h5.zip",
-     {'regionwise': False,
-      'voxelwise': True},
      ),
     ('V2.P.Comm - Commissural, Probabilistic',
      'https://osf.io/3fqet/download',
      # "https://www.dropbox.com/s/4vz0ofjaelrm54y/priors_comm_proba_3T.h5.zip?dl=1",
      "priors_comm_proba_3T.h5.zip",
-     {'regionwise': False,
-      'voxelwise': True},
      ),
     # ('V2.P.Cereb - Cerebellar, Probabilistic',  # Not interesting and not computed with Extractor right now
     #  "https://www.dropbox.com/s/nfq9gh09u4whw72/priors_cereb_proba3T.h5.zip?dl=1",
@@ -112,49 +98,36 @@ PRIORS_INFO = (
      'https://osf.io/9ch3x/download',
      # "https://www.dropbox.com/s/aj84fl3la3yymv7/priors_full_deter3T.h5.zip?dl=1",
      "priors_full_deter3T.h5.zip",
-     {'regionwise': False,
-      'voxelwise': True},
      ),
     ('V2.D.Asso - Association, Deterministic',
      'https://osf.io/qba3y/download',
      # "https://www.dropbox.com/s/r824b5vk5apvp6o/priors_asso_deter3T.h5.zip?dl=1",
      "priors_asso_deter3T.h5.zip",
-     {'regionwise': False,
-      'voxelwise': True},
      ),
     ('V2.D.Proj - Projection, Deterministic',
      'https://osf.io/vf57m/download',
      # "https://www.dropbox.com/s/ln8rdh3oyftvrid/priors_proj_deter3T.h5.zip?dl=1",
      "priors_proj_deter3T.h5.zip",
-     {'regionwise': False,
-      'voxelwise': True},
      ),
     ('V2.D.Comm - Commissural, Deterministic',
      'https://osf.io/gk2ec/download',
      # "https://www.dropbox.com/s/xunfqlzaracfp06/priors_comm_deter3T.h5.zip?dl=1",
      "priors_comm_deter3T.h5.zip",
-     {'regionwise': False,
-      'voxelwise': True},
      ),
     ('V2.D.Cereb - Cerebellar, Deterministic',
      'https://osf.io/r967e/download',
      # "https://www.dropbox.com/s/do5ou7datoxv7ya/priors_cereb_deter3T.h5.zip?dl=1",
      "priors_cereb_deter3T.h5.zip",
-     {'regionwise': False,
-      'voxelwise': True},
      ),
     ('V1.D.WB - Whole brain, Deterministic (legacy)',
      'https://osf.io/fpevq/download',
      # "https://www.dropbox.com/s/22vix4krs2zgtnt/functionnectome_7TpriorsH5.zip?dl=1",
      "functionnectome_7TpriorsH5.zip",
-     {'regionwise': True,
-      'voxelwise': True},
      ),
 )
 PRIORS_H5 = tuple(pinfo[0] for pinfo in PRIORS_INFO)
 PRIORS_URL = {pinfo[0]: pinfo[1] for pinfo in PRIORS_INFO}
 PRIORS_ZIP = {pinfo[0]: pinfo[2] for pinfo in PRIORS_INFO}
-PRIORS_TYPE = tuple(pinfo[3] for pinfo in PRIORS_INFO)
 PRIORS_LABEL = {h5[:h5.find(' - ')]: h5 for h5 in PRIORS_H5}
 
 
@@ -1284,6 +1257,19 @@ def Voxelwise_functionnectome2(batch_num):
                     )
 
 
+def testPriorsH5(pFile, pType):
+    '''
+    Check if the h5 priors file contains the "ptype" maps ("region" or "voxel")
+    '''
+    with h5py.File(pFile, "r") as h5fout:
+        if pType == 'region' and len(h5fout['tract_region'].keys()) > 1:
+            return True
+        elif pType == 'voxel' and len(h5fout['tract_voxel'].keys()) > 1:
+            return True
+        else:
+            return False
+
+
 # %%
 def run_functionnectome(settingFilePath, from_GUI=False):
     """
@@ -1647,6 +1633,8 @@ def Functionnectome(
             h5_loc = priors_paths[priorsH5]
         pmap_loc = h5_loc
         regions_loc = h5_loc
+        if not testPriorsH5(h5_loc, anatype):
+            raise Exception(f'The selected priors do not have the {anatype}wise maps.')
     else:
         raise Exception('Bad type of priors (not "nii" nor "h5")')
 

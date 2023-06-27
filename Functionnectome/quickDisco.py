@@ -19,16 +19,8 @@ import argparse
 import fnmatch
 import multiprocessing
 
-try:
-    import Functionnectome.functionnectome as fun
-    from Functionnectome.functionnectome import PRIORS_H5  # , PRIORS_URL, PRIORS_ZIP
-except ModuleNotFoundError:
-    print(
-        "The Functionnectome module was not found (probably not installed via pip)."
-        " Importing functions from the folder where the current script was saved..."
-    )
-    import functionnectome as fun
-    from functionnectome import PRIORS_H5  # , PRIORS_URL, PRIORS_ZIP
+import Functionnectome.functionnectome as fun
+from Functionnectome.functionnectome import PRIORS_H5
 
 # %%
 
@@ -86,6 +78,8 @@ def probaMap_fromROI(roiVol, priorsLoc, templShape, priors_type='h5', proc=1, ma
 
     listVox = np.argwhere(roiVol)
     outMap = np.zeros(templShape)
+    if not fun.testPriorsH5(priorsLoc, 'voxel'):
+        raise Exception('The selected priors do not have voxelwise data.')
 
     if proc == 1:
         if priors_type == "h5":

@@ -47,10 +47,10 @@ def changeCompPriors(inF, outF, compType='lzf', comptStr=4, thr=None, verbose=Tr
             h5fin.copy(h5fin['mask_region'], h5fout['/'], 'mask_region')
             h5fin.copy(h5fin['template'], h5fout['/'], 'template')
             grp_reg = h5fout.create_group('tract_region')
-            if len(h5fin['tract_region'].keys()):
+            regs = h5fin['tract_region'].keys()
+            if len(regs):
                 grp_reg.attrs['header'] = h5fin['tract_region'].attrs['header']
-                regs = h5fin['tract_region'].keys()
-                if verbose and len(regs) > 1:
+                if verbose:
                     print('Regionwise priors')
                 for ii, reg in enumerate(regs):
                     if verbose and ii % 5 == 0:
@@ -62,18 +62,19 @@ def changeCompPriors(inF, outF, compType='lzf', comptStr=4, thr=None, verbose=Tr
                                            compression=compType, compression_opts=comptStr,
                                            chunks=vol.shape)
             grp_vox = h5fout.create_group('tract_voxel')
-            grp_vox.attrs['header'] = h5fin['tract_voxel'].attrs['header']
             voxs = h5fin['tract_voxel'].keys()
-            if verbose and len(voxs) > 1:
-                print('Voxelwise priors')
-            for ii, vox in enumerate(voxs):
-                if ii % 1000 == 0 and verbose:
-                    print(f'{ii//1000}k/{len(voxs)//1000}k')
-                vol = h5fin['tract_voxel'][vox][:]
-                if thr:
-                    vol[vol <= thr] = 0
-                grp_vox.create_dataset(vox, data=vol, maxshape=vol.shape,
-                                       compression=compType, compression_opts=comptStr, chunks=vol.shape)
+            if len(voxs):
+                grp_vox.attrs['header'] = h5fin['tract_voxel'].attrs['header']
+                if verbose and len(voxs) > 1:
+                    print('Voxelwise priors')
+                for ii, vox in enumerate(voxs):
+                    if ii % 1000 == 0 and verbose:
+                        print(f'{ii//1000}k/{len(voxs)//1000}k')
+                    vol = h5fin['tract_voxel'][vox][:]
+                    if thr:
+                        vol[vol <= thr] = 0
+                    grp_vox.create_dataset(vox, data=vol, maxshape=vol.shape,
+                                           compression=compType, compression_opts=comptStr, chunks=vol.shape)
 
 
 def _build_arg_parser():

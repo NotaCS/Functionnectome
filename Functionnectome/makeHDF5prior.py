@@ -46,7 +46,7 @@ def header2string(header):
     return hdr_cleaned
 
 
-def run_h5maker(outFile, templatePath, dirVoxel, dirRegion, maskRegion, comp='gzip'):
+def run_h5maker(outFile, templatePath, dirVoxel, dirRegion='', maskRegion='', comp='gzip'):
     '''
     Create a new HDF5 priors file using the voxel-wise and region-wise probabily maps provided.
 
@@ -95,41 +95,47 @@ def run_h5maker(outFile, templatePath, dirVoxel, dirRegion, maskRegion, comp='gz
         template.attrs['header'] = header2string(template_img.header)
 
         # Creation of the groups containing the white matter probability maps region-wise and voxel-wise
+        im_list = []
         grp_vox = h5fout.create_group('tract_voxel')
         vox0_img = nib.load(os.path.join(dirVoxel, listPmapVoxel[0]))
         grp_vox.attrs['header'] = header2string(vox0_img.header)
+        im_list.append(vox0_img)
 
         grp_reg = h5fout.create_group('tract_region')
-        reg0_img = nib.load(os.path.join(dirRegion, listPmapRegion[0]))
-        grp_reg.attrs['header'] = header2string(reg0_img.header)
-
         grp_mreg = h5fout.create_group('mask_region')
-        reg0m_img = nib.load(os.path.join(maskRegion, listMaskRegion[0]))
-        grp_mreg.attrs['header'] = header2string(reg0m_img.header)
+        if listPmapRegion:
+            reg0_img = nib.load(os.path.join(dirRegion, listPmapRegion[0]))
+            grp_reg.attrs['header'] = header2string(reg0_img.header)
+            im_list.append(reg0_img)
+
+            reg0m_img = nib.load(os.path.join(maskRegion, listPmapRegion[0]))
+            grp_mreg.attrs['header'] = header2string(reg0m_img.header)
+            im_list.append(reg0m_img)
 
         # Checking if all the files have the correct shape
-        if not all([img3D.shape == shape3D for img3D in [vox0_img, reg0_img, reg0m_img]]):
+        if not all([img3D.shape == shape3D for img3D in im_list]):
             raise Exception(f'Some of the input files do not have the proper shape {shape3D}')
         # Filling the groups with the data
-        for ii, pmapF in enumerate(listPmapRegion):
-            print(f'Region {ii+1} on {len(listPmapRegion)}')
-            indvox = pmapF.find('.nii')
-            reg_ID = pmapF[:indvox]
-            reg_img = nib.load(os.path.join(dirRegion, pmapF))
-            reg = grp_reg.create_dataset(reg_ID, reg_img.shape, reg_img.get_data_dtype(),
-                                         compression=comp, chunks=shape3D)
-            try:
-                reg[:] = reg_img.get_fdata(dtype=reg_img.get_data_dtype())
-            except ValueError:
-                reg[:] = reg_img.get_fdata().astype(reg_img.get_data_dtype())
+        if listPmapRegion:
+            for ii, pmapF in enumerate(listPmapRegion):
+                print(f'Region {ii+1} on {len(listPmapRegion)}')
+                indvox = pmapF.find('.nii')
+                reg_ID = pmapF[:indvox]
+                reg_img = nib.load(os.path.join(dirRegion, pmapF))
+                reg = grp_reg.create_dataset(reg_ID, reg_img.shape, reg_img.get_data_dtype(),
+                                             compression=comp, chunks=shape3D)
+                try:
+                    reg[:] = reg_img.get_fdata(dtype=reg_img.get_data_dtype())
+                except ValueError:
+                    reg[:] = reg_img.get_fdata().astype(reg_img.get_data_dtype())
 
-            regm_img = nib.load(os.path.join(maskRegion, pmapF))
-            regm = grp_mreg.create_dataset(reg_ID, regm_img.shape, regm_img.get_data_dtype(),
-                                           compression=comp, chunks=shape3D)
-            try:
-                regm[:] = regm_img.get_fdata(dtype=regm_img.get_data_dtype())
-            except ValueError:
-                regm[:] = regm_img.get_fdata().astype(regm_img.get_data_dtype())
+                regm_img = nib.load(os.path.join(maskRegion, pmapF))
+                regm = grp_mreg.create_dataset(reg_ID, regm_img.shape, regm_img.get_data_dtype(),
+                                               compression=comp, chunks=shape3D)
+                try:
+                    regm[:] = regm_img.get_fdata(dtype=regm_img.get_data_dtype())
+                except ValueError:
+                    regm[:] = regm_img.get_fdata().astype(regm_img.get_data_dtype())
 
         for ii, pmapF in enumerate(listPmapVoxel):
             print(f'Voxel {ii+1} on {len(listPmapVoxel)}')
@@ -166,10 +172,10 @@ def main():
     parser.add_argument("-vxl", "--voxelsDir", help="Path to the directory (or folder) "
                         "containing the voxel-wise priors", required=True)
     parser.add_argument("-reg", "--regionsDir", help="Path to the directory (or folder) "
-                        "containing the region-wise priors", required=True)
+                        "containing the region-wise priors", default='')
     parser.add_argument("-rmas", "--regionMasksDir", help="Path to the directory (or folder) "
                         "containing the masks of the regions corresponding to the region-wise priors",
-                        required=True)
+                        default='')
     parser.add_argument("-c", "--compression", help="Compression algo: 'gzip' (strong but slow to read) "
                         "or 'lzf' (light but fast to read). Default is 'gzip'.",
                         default='gzip', choices=['gzip', 'lzf'])
@@ -179,6 +185,11 @@ def main():
     # Convert relative path to absolute path (might be necessary)
     for iarg in vars(args):
         setattr(args, iarg, os.path.abspath(getattr(args, iarg)))
+    if (
+            args.regionsDir and not args.regionMasksDir
+            or
+            args.regionMasksDir and not args.regionsDir):
+        raise parser.error('One of the region folder is missing')
 
     run_h5maker(args.H5file, args.templateFile, args.voxelsDir,
                 args.regionsDir, args.regionMasksDir, args.compression)

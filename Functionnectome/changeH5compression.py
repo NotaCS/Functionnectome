@@ -46,21 +46,21 @@ def changeCompPriors(inF, outF, compType='lzf', comptStr=4, thr=None, verbose=Tr
         with h5py.File(inF, "r") as h5fin:
             h5fin.copy(h5fin['mask_region'], h5fout['/'], 'mask_region')
             h5fin.copy(h5fin['template'], h5fout['/'], 'template')
-            # h5fin.copy(h5fin['tract_region'], h5fout['/'], 'tract_region')
             grp_reg = h5fout.create_group('tract_region')
-            grp_reg.attrs['header'] = h5fin['tract_region'].attrs['header']
-            regs = h5fin['tract_region'].keys()
-            if verbose and len(regs) > 1:
-                print('Regionwise priors')
-            for ii, reg in enumerate(regs):
-                if verbose and ii % 5 == 0:
-                    print(f'{ii+1}/{len(regs)}')
-                vol = h5fin['tract_region'][reg][:]
-                if thr:
-                    vol[vol <= thr] = 0
-                grp_reg.create_dataset(reg, data=vol, maxshape=vol.shape,
-                                       compression=compType, compression_opts=comptStr,
-                                       chunks=vol.shape)
+            if len(h5fin['tract_region'].keys()):
+                grp_reg.attrs['header'] = h5fin['tract_region'].attrs['header']
+                regs = h5fin['tract_region'].keys()
+                if verbose and len(regs) > 1:
+                    print('Regionwise priors')
+                for ii, reg in enumerate(regs):
+                    if verbose and ii % 5 == 0:
+                        print(f'{ii+1}/{len(regs)}')
+                    vol = h5fin['tract_region'][reg][:]
+                    if thr:
+                        vol[vol <= thr] = 0
+                    grp_reg.create_dataset(reg, data=vol, maxshape=vol.shape,
+                                           compression=compType, compression_opts=comptStr,
+                                           chunks=vol.shape)
             grp_vox = h5fout.create_group('tract_voxel')
             grp_vox.attrs['header'] = h5fin['tract_voxel'].attrs['header']
             voxs = h5fin['tract_voxel'].keys()

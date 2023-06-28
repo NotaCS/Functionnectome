@@ -28,7 +28,7 @@ import darkdetect
 
 
 import Functionnectome.functionnectome as fun
-from Functionnectome.functionnectome import PRIORS_H5, PRIORS_TYPE  # , PRIORS_URL, PRIORS_ZIP
+from Functionnectome.functionnectome import PRIORS_H5  # , PRIORS_URL, PRIORS_ZIP
 version = pkg_resources.require("Functionnectome")[0].version
 
 
@@ -80,7 +80,6 @@ class Functionnectome_GUI(tk.Tk):
         self.priors = tk.StringVar()  # (h5 or nii)
         self.priors.set("h5")  # Used to be a choice, now enforce h5 only in the GUI
         self.priorsFileList = PRIORS_H5
-        self.priorsTypeAvail = PRIORS_TYPE
         self.priorsChoice = tk.StringVar()
         self.priorsChoice.set(self.priorsFileList[0])
         self.customPriors = tk.StringVar()
@@ -543,7 +542,7 @@ class Functionnectome_GUI(tk.Tk):
         self.dlBool = []
         self.selectWidgts = []
         self.fun4button = []
-        for i, (priors, ptype) in enumerate(zip(self.priorsFileList, self.priorsTypeAvail)):
+        for i, priors in enumerate(self.priorsFileList):
             self.radioListPriors.append(
                 tk.Radiobutton(
                     top_priors,
@@ -553,12 +552,6 @@ class Functionnectome_GUI(tk.Tk):
                     bg=self.bg_color
                 )
             )
-            if (
-                    self.ana_type.get() == 'voxel' and not ptype['voxelwise']
-                    or
-                    self.ana_type.get() == 'region' and not ptype['regionwise']
-            ):
-                self.radioListPriors[-1].config(state="disabled")
 
             self.dlBool.append(tk.BooleanVar())
             self.dlChecks.append(
@@ -571,6 +564,9 @@ class Functionnectome_GUI(tk.Tk):
                               highlightbackground=self.bg_color)
                 )
             elif priors in DLedH5:
+                if self.ana_type.get() == 'region':  # Too slow for voxelwise test
+                    if not fun.testPriorsH5(self.priors_paths[priors], 'region'):
+                        self.radioListPriors[-1].config(state="disabled")
                 self.fun4button.append(lambda priors=priors: showPath(priors))
                 self.selectWidgts.append(
                     tk.Button(top_priors, text="View local path", command=self.fun4button[i],
@@ -935,24 +931,10 @@ class Functionnectome_GUI(tk.Tk):
                 )
                 return 0
         else:
-            idPriors = PRIORS_H5.index(self.priorsChoice.get())
-            ptype = PRIORS_TYPE[idPriors]
-            if (
-                    self.ana_type.get() == 'voxel' and not ptype['voxelwise']
-                    or
-                    self.ana_type.get() == 'region' and not ptype['regionwise']
-            ):
-                messagebox.showwarning(
-                    "Unavailable priors type",
-                    f"Sorry, the {self.ana_type.get()}wise analysis is not available with the chosen priors ",
-                    parent=self,
-                )
-                return 0
-            else:
-                settingsTxt = fun.makeSettingsTxt(
-                    self.outDir.get(), self.ana_type.get(), self.nb_parallel_proc.get(), self.priors.get(),
-                    self.priorsChoice.get(), posID, outputMask, self.nbFiles.get(), self.bold_paths,
-                    self.nbMasks.get(), self.mask_paths)
+            settingsTxt = fun.makeSettingsTxt(
+                self.outDir.get(), self.ana_type.get(), self.nb_parallel_proc.get(), self.priors.get(),
+                self.priorsChoice.get(), posID, outputMask, self.nbFiles.get(), self.bold_paths,
+                self.nbMasks.get(), self.mask_paths)
         return settingsTxt
 
     def choseFileAndSave(self):

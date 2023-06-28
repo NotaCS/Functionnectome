@@ -757,7 +757,6 @@ def LogDiplayPercent(logDir, previous_percent=0):
     """
     logList = glob.glob(os.path.join(logDir, "log_*.txt"))
     if not logList:
-        print("Process starting...")
         return
     currentLen = []
     maxETA = 0  # Store the longest ETA  among the parallel processes
@@ -1262,12 +1261,10 @@ def testPriorsH5(pFile, pType):
     Check if the h5 priors file contains the "ptype" maps ("region" or "voxel")
     '''
     with h5py.File(pFile, "r") as h5fout:
-        if pType == 'region' and len(h5fout['tract_region'].keys()) > 1:
-            return True
-        elif pType == 'voxel' and len(h5fout['tract_voxel'].keys()) > 1:
-            return True
-        else:
-            return False
+        for i, _ in enumerate(h5fout[f'tract_{pType}'].__iter__()):
+            if i > 1:
+                return True
+        return False
 
 
 # %%

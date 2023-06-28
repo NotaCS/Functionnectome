@@ -233,15 +233,14 @@ def main():
             "As for the classical Disconnectome, the lesion should be in the MNI space.\n\n"
             + txtH5
             + "\n\n"
-            "/!\\ Be aware however that this method hasn't been published yet."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("-i", "--inFiles", help="Path to the input lesion files.",
                         required=True, nargs='+')
     parser.add_argument("-p", "--priors", help=("Label of the connectivity priors, "
-                                                "or full path to the priors file, to use for the analysis"
-                                                " (available labels: " + " ".join(h5Labels.keys()) + ")."),
+                                                "or full path to the priors file, to use for the analysis\n"
+                                                "Available labels:\n" + "\n".join(h5Labels.keys())),
                         required=True, metavar="PRIORS_LABEL/PATH")
     parser.add_argument("-o", "--outDir", help="Path to the directory (or folder) "
                         "where the disconnectomes will be stored. If none is given, save them in the same "

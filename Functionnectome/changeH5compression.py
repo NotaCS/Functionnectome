@@ -8,6 +8,11 @@ speeds up the Functionnectome process quite a bit.
 To use it, you simply need to give it the file priors file you want
 to decompress, and the file path (with the file name) where you want
 to save the resulting file.
+
+Note that to use the new priors, you will need to input their path in
+as "Custom priors" or replace the current default priors with them
+(e.g. by ensuring that the file path used by the old priors now points
+to the new ones).
 """
 
 import h5py

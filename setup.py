@@ -14,7 +14,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="Functionnectome",
     url="https://github.com/NotaCS/Functionnectome",
-    version="2.4.3",
+    version="2.5.0",
     author="Victor Nozais",
     author_email="nozais.victor@gmail.com",
     description="Package containing all the necessary tools to run the Functionnectome method",
@@ -38,6 +38,7 @@ setuptools.setup(
             "MNIzor=Functionnectome.MNIzor:main",
             "Funtome=Functionnectome.Funtome:main",
             "DecompressH5=Functionnectome.changeH5compression:main",
+            "MakeRegionwiseH5=Functionnectome.makeRegionwisePriors:main"
         ],
     },
     install_requires=["numpy",

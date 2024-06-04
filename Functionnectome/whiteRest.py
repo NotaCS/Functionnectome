@@ -305,7 +305,7 @@ def computPresence(ROI_f, atlas_f, RSNlabels_f, zThresh=7, binarize=False):
                               presenceProp[i],  # Presence (%)
                               presenceRaw[i],  # Presence (raw)
                               coverage[i]]  # Coverage
-    resPresence.sort_values('Presence (%)', ascending=False, inplace=True, ignore_index=True)
+    resPresence.sort_values('Presence prop. (%)', ascending=False, inplace=True, ignore_index=True)
     return resPresence
 
 

@@ -6,9 +6,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "Functionnectome"
 version = "2.5.1"
-authors=[{"name" = "Victor Nozais"}]
-maintainers = [{"name" = "Victor Nozais"}]
-description="Package containing all the necessary tools to run the Functionnectome method"
+authors = [{ "name" = "Victor Nozais" }]
+maintainers = [{ "name" = "Victor Nozais" }]
+description = "Package containing all the necessary tools to run the Functionnectome method"
 readme = "README.md"
 requires-python = ">=3.6"
 license = { text = "GNU General Public License v3 (GPLv3)" }
@@ -25,17 +25,17 @@ dependencies = [
     "h5py",
     "matplotlib",
     "darkdetect",
-    "setuptools==81.0.0"
+    "setuptools<81.0.0",
 ]
 
 [project.scripts]
-FunctionnectomeGUI= "Functionnectome.functionnectome_GUI:run_gui"
-Functionnectome= "Functionnectome.functionnectome:main"
-MakeH5= "Functionnectome.makeHDF5prior:main"
-WhiteRest= "Functionnectome.whiteRest:main"
-QuickDisco= "Functionnectome.quickDisco:main"
-dFC_Fun= "Functionnectome.dFC_functionnectome:main"
-MNIzor= "Functionnectome.MNIzor:main"
-Funtome= "Functionnectome.Funtome:main"
-DecompressH5= "Functionnectome.changeH5compression:main"
-MakeRegionwiseH5= "Functionnectome.makeRegionwisePriors:main"
+FunctionnectomeGUI = "Functionnectome.functionnectome_GUI:run_gui"
+Functionnectome = "Functionnectome.functionnectome:main"
+MakeH5 = "Functionnectome.makeHDF5prior:main"
+WhiteRest = "Functionnectome.whiteRest:main"
+QuickDisco = "Functionnectome.quickDisco:main"
+dFC_Fun = "Functionnectome.dFC_functionnectome:main"
+MNIzor = "Functionnectome.MNIzor:main"
+Funtome = "Functionnectome.Funtome:main"
+DecompressH5 = "Functionnectome.changeH5compression:main"
+MakeRegionwiseH5 = "Functionnectome.makeRegionwisePriors:main"

@@ -645,7 +645,38 @@ class Functionnectome_GUI(tk.Tk):
         if bold_paths_tmp:  # to manage empty answers and "Cancel" use
             self.bold_paths = list(bold_paths_tmp)
             self.bold_paths.sort()
+            print(bold_paths_tmp[0])
+            decomposedPaths = [
+                tuple(filter(None, os.path.normpath(path).split(os.path.sep)))
+                for path in bold_paths_tmp
+            ]
+            lenPaths = [len(p) for p in decomposedPaths]
+            if not lenPaths[1:] == lenPaths[:-1]:
+                # If the paths have the same number of directories
+                msg = (
+                    "The paths entered do not all have the same length "
+                    "(i.e. each path do not have the same number of sub-directories).\n"
+                    "This might hinder (or even break) the naming of the output folders and files."
+                )
+                messagebox.showwarning("Inconsistent paths", msg)
+            nameGuessed = 0
+            lenPath = min([len(dp) for dp in decomposedPaths]) - 1
+            for ii in range(
+                lenPath
+            ):  # Scan through and compare the paths components
+                subPaths = [p[ii] for p in decomposedPaths]
+                if (
+                    subPaths[1:] == subPaths[:-1]
+                ):  # Test if all values are equal
+                    nameGuessed += 1
+                else:  # When they are different, stops : it's probably the ID of the subject
+                    break
             self.cwd = os.path.dirname(bold_paths_tmp[0])
+        
+            self.exPath = decomposedPaths[0]
+            self.exSubName.set("Ex: " + self.exPath[nameGuessed])
+            self.posSubName.config(to=lenPath)
+            self.subInPath.set(str(nameGuessed))
         self.nbFiles.set(len(self.bold_paths))
 
     def update_exSub(self):
